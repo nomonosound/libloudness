@@ -1,0 +1,24 @@
+BasedOnStyle:  Google
+IndentWidth:     4
+ColumnLimit:     120
+AccessModifierOffset: -4
+BreakBeforeBraces: Stroustrup
+IncludeBlocks:   Regroup
+IncludeCategories:
+  # Headers in <> from specific external libraries.
+  - Regex:           '^<.*(catch|boost|Eigen|spdlog)\/'
+    Priority:        3
+  # Headers in <> without extension.
+  - Regex:           '^<([A-Za-z0-9\/-_])+>'
+    Priority:        2
+  # Headers in <> with *.h extension.
+  - Regex:           '^<.*\.h>'
+    Priority:        1
+  # Headers in <> with *.hpp extension.
+  - Regex:           '^<.*\.hpp>'
+    Priority:        3
+  # The remaining headers.
+  - Regex:           '.*'
+    Priority:        4
+IndentCaseLabels: false
+NamespaceIndentation: All
