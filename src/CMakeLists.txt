@@ -16,6 +16,8 @@ set(EBUR128_VERSION 1.2.6)
 add_library(lufs_meter
     ebur128.cpp
     ebur128.hpp
+    detail/ebur128-impl.hpp
+    detail/ebur128-impl.cpp
     k-filter.cpp
     k-filter.hpp
     interpolator.cpp

@@ -61,4 +61,14 @@ private:
     std::array<unsigned long, HISTOGRAM_SIZE> short_term_block_energy_histogram{};
 };
 
+
+class LoudnessRangeCalculator {
+public:
+    void addHistCalculator(const HistogramCalculator& calc);
+    double getLoudnessRange() const;
+private:
+    size_t stl_size = 0;
+    double stl_power = 0.0;
+};
+
 #endif  // BS1770CALCULATOR_HPP

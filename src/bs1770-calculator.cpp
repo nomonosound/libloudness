@@ -84,7 +84,7 @@ double HistogramCalculator::loudnessRangeMultiple(const std::vector<const Histog
     stl_power /= stl_size;
     const double stl_integrated = minus_twenty_decibels * stl_power;
 
-    size_t index = relative_threshold_index(stl_integrated);
+    size_t index;
     if (stl_integrated < minimum_energy) {
         index = 0;
     }
@@ -217,4 +217,14 @@ double BlockListCalculator::loudnessRangeMultiple(const std::vector<const BlockL
     }
 
     return 0.0;
+}
+
+void LoudnessRangeCalculator::addHistCalculator(const HistogramCalculator& calc)
+{
+
+}
+
+double LoudnessRangeCalculator::getLoudnessRange() const
+{
+
 }
