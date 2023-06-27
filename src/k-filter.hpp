@@ -9,6 +9,9 @@ public:
     KFilter(double samplerate, unsigned int channels);
     double apply(double src, unsigned int channel);
 
+    // Prefer to not use
+    void manuallyFTZ(unsigned int channel);
+
 private:
     static constexpr std::size_t FILTER_STATE_SIZE = 5;
     /** BS.1770 filter state. */

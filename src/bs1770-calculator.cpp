@@ -34,8 +34,6 @@ constexpr size_t findHistogramIndex(double energy)
 
 static constexpr auto histogram_energies = getHistogramEnergies();
 
-
-
 void HistogramCalculator::addBlock(double energy) { ++block_energy_histogram[findHistogramIndex(energy)]; }
 
 void HistogramCalculator::addShortTermBlock(double energy)
@@ -61,6 +59,23 @@ ValueCounter HistogramCalculator::gatedLoudness(double relative_threshold) const
     }
 
     return {.counter=above_thresh_counter, .sum=gated_loudness};
+}
+
+double HistogramCalculator::gatedMedianLoudness(double relative_threshold) const
+{
+    size_t left_count = 0;
+    size_t right_count = 0;
+    size_t rev_i = HISTOGRAM_SIZE - 1;
+    for (size_t i = relative_threshold_index(relative_threshold); i != rev_i;) {
+        if (right_count >= left_count) {
+            left_count += block_energy_histogram[i];
+            ++i;
+        } else {
+            right_count += block_energy_histogram[rev_i];
+            --rev_i;
+        }
+    }
+    return (left_count + right_count == 0) ? -HUGE_VAL : histogram_energies[rev_i-1];
 }
 
 
@@ -116,7 +131,7 @@ double HistogramCalculator::loudnessRangeMultiple(const std::vector<const Histog
     }
     const double h_en = histogram_energies[j - 1];
 
-    return EnergyToLoudness(h_en) - EnergyToLoudness(l_en);
+    return energyToLoudness(h_en) - energyToLoudness(l_en);
 }
 
 size_t HistogramCalculator::relative_threshold_index(double relative_threshold)
@@ -180,6 +195,11 @@ ValueCounter BlockListCalculator::gatedLoudness(double relative_threshold) const
     return {.counter=above_thresh_counter, .sum=gated_loudness};
 }
 
+double BlockListCalculator::gatedMedianLoudness(double relative_threshold) const
+{
+    return median(std::views::filter(block_list_, [relative_threshold](auto val){return val >= relative_threshold;}));
+}
+
 double BlockListCalculator::loudnessRangeMultiple(const std::vector<const BlockListCalculator*>& block_lists)
 {
     size_t stl_size = 0;
@@ -213,7 +233,7 @@ double BlockListCalculator::loudnessRangeMultiple(const std::vector<const BlockL
     if (stl_relgated_size) {
         const double h_en = stl_relgated[static_cast<size_t>((stl_relgated_size - 1) * 0.95 + 0.5)];
         const double l_en = stl_relgated[static_cast<size_t>((stl_relgated_size - 1) * 0.1 + 0.5)];
-        return EnergyToLoudness(h_en) - EnergyToLoudness(l_en);
+        return energyToLoudness(h_en) - energyToLoudness(l_en);
     }
 
     return 0.0;

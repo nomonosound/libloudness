@@ -88,8 +88,8 @@ public:
      *  @param history duration of history in ms.
      *  @return bool if history duration was changed or not
      */
-    int setMaxHistory(unsigned long history) requires ((mode & EBUR128_MODE_HISTOGRAM) != EBUR128_MODE_HISTOGRAM) {
-        meter.setMaxHistory(history);
+    bool setMaxHistory(unsigned long history) requires ((mode & EBUR128_MODE_HISTOGRAM) != EBUR128_MODE_HISTOGRAM) {
+        return meter.setMaxHistory(history);
     }
 
     /** \brief Add frames to be processed.
@@ -109,6 +109,15 @@ public:
      */
     double loudnessGlobal() requires ((mode & EBUR128_MODE_I) == EBUR128_MODE_I){
         return meter.loudnessGlobal();
+    }
+
+    /** \brief Get global median loudness.
+     *
+     *  @return integrated loudness in LUFS. -HUGE_VAL if result is negative
+     *             infinity.
+     */
+    double loudnessGlobalMedian() requires ((mode & EBUR128_MODE_I) == EBUR128_MODE_I){
+        return meter.loudnessGlobalMedian();
     }
 
     /** \brief Get momentary loudness (last 400ms) in LUFS.

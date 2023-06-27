@@ -92,12 +92,15 @@ namespace detail {
         template <typename T>
         void addFrames(const T* src, size_t frames);
 
+        // EBU-R128
         double loudnessGlobal();
         double loudnessMomentary();
         double loudnessShortterm();
         double loudnessWindow(unsigned long window);
 
         double loudnessRange();
+
+        double loudnessGlobalMedian();
 
         double samplePeak(unsigned int channel_number) const;
         double prevSamplePeak(unsigned int channel_number) const;

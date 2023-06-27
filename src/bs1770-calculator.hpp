@@ -21,6 +21,7 @@ public:
 
     virtual ValueCounter relativeThreshold() const = 0;
     virtual ValueCounter gatedLoudness(double relative_threshold) const = 0;
+    virtual double gatedMedianLoudness(double relative_threshold) const = 0;
 };
 
 class BlockListCalculator : public BS1770Calculator {
@@ -30,6 +31,7 @@ public:
     bool setMaxHistory(unsigned long history) override;
     ValueCounter relativeThreshold() const override;
     ValueCounter gatedLoudness(double relative_threshold) const override;
+    double gatedMedianLoudness(double relative_threshold) const override;
 
     static double loudnessRangeMultiple(const std::vector<const BlockListCalculator*>& block_lists);
 
@@ -51,6 +53,7 @@ public:
     void addShortTermBlock(double energy) override;
     ValueCounter relativeThreshold() const override;
     ValueCounter gatedLoudness(double relative_threshold) const override;
+    double gatedMedianLoudness(double relative_threshold) const override;
 
     static double loudnessRangeMultiple(const std::vector<const HistogramCalculator*>& histograms);
 

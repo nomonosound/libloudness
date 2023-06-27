@@ -2,9 +2,11 @@
 #include "test-utilities.hpp"
 #include <algorithm>
 #include <numeric>
-#include <doctest/doctest.h>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include"utils.hpp"
 
-TEST_CASE("K-filter behaves as expected") {
+TEST_CASE("K-filter behaves as expected", "[k-filter]") {
     KFilter filter(48000, 1);
 
     auto test_sine = sineWave<double>(1000.0, 48000.0, 10*48000, 2, -23.0);
@@ -22,4 +24,18 @@ TEST_CASE("K-filter behaves as expected") {
 //    double val = *std::max_element(test_sine.cbegin(), test_sine.cend());
 //    CHECK(*std::max_element(test_sine.cbegin(), test_sine.cend()) == doctest::Approx(*std::max_element(filtered.cbegin(), filtered.cend())));
 //    CHECK(*std::min_element(test_sine.cbegin(), test_sine.cend()) == doctest::Approx(*std::min_element(filtered.cbegin(), filtered.cend())));
+}
+TEST_CASE("Benchmark K-filter", "[.benchmark][k-filter]"){
+    BENCHMARK_ADVANCED("Benchmark sine wave")(Catch::Benchmark::Chronometer meter) {
+        ScopedFTZ guard;
+        KFilter filter(48000, 1);
+        auto test_sine = sineWave<double>(1000.0, 48000.0, 60*48000, 2, -23.0);
+        auto output = std::vector<double>(test_sine.size());
+        meter.measure([&test_sine, &filter, &output]{
+            for (size_t i = 0; i < test_sine.size(); ++i){
+                output[i] = filter.apply(test_sine[i], 0);
+            }
+            return output;
+        });
+    };
 }

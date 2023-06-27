@@ -5,16 +5,18 @@
 #include <numbers>
 #include <numeric>
 
+#include <gcem.hpp>
+
 KFilter::KFilter(double samplerate, unsigned int channels) : v_(channels, filter_state{})
 {
     // TODO: assert samplerate > 0
     constexpr double f0 = 1681.974450955533;
     constexpr double G = 3.999843853973347;
+    constexpr double Vh = gcem::pow(10.0, G / 20.0);
+    constexpr double Vb = gcem::pow(Vh, 0.4996667741545416);
     constexpr double Q = 0.7071752369554196;
 
     double K = std::tan(std::numbers::pi * f0 / samplerate);
-    const double Vh = std::pow(10.0, G / 20.0);
-    const double Vb = std::pow(Vh, 0.4996667741545416);
 
     const double a0 = 1.0 + K / Q + K * K;
 
@@ -47,8 +49,28 @@ KFilter::KFilter(double samplerate, unsigned int channels) : v_(channels, filter
 
 double KFilter::apply(double src, unsigned int channel)
 {
-    std::shift_right(v_[channel].begin(), v_[channel].end(), 1);
-    v_[channel][0] =
-        src - std::transform_reduce(std::next(a_.cbegin()), a_.cend(), std::next(v_[channel].cbegin()), 0.0);
-    return std::transform_reduce(b_.cbegin(), b_.cend(), v_[channel].cbegin(), 0.0);
+    // NB! Critical inner loop, benchmark when modifying anything
+    v_[channel][4] = v_[channel][3];
+    v_[channel][3] = v_[channel][2];
+    v_[channel][2] = v_[channel][1];
+    v_[channel][1] = v_[channel][0];
+    v_[channel][0] = src -
+        a_[1] * v_[channel][1] -
+        a_[2] * v_[channel][2] -
+        a_[3] * v_[channel][3] -
+        a_[4] * v_[channel][4];
+    return
+        b_[0] * v_[channel][0] +
+        b_[1] * v_[channel][1] +
+        b_[2] * v_[channel][2] +
+        b_[3] * v_[channel][3] +
+        b_[4] * v_[channel][4];
+}
+
+void KFilter::manuallyFTZ(unsigned int channel)
+{
+    v_[channel][4] = std::abs(v_[channel][4]) < std::numeric_limits<double>::min() ? 0.0 : v_[channel][4];
+    v_[channel][3] = std::abs(v_[channel][3]) < std::numeric_limits<double>::min() ? 0.0 : v_[channel][3];
+    v_[channel][2] = std::abs(v_[channel][2]) < std::numeric_limits<double>::min() ? 0.0 : v_[channel][2];
+    v_[channel][1] = std::abs(v_[channel][1]) < std::numeric_limits<double>::min() ? 0.0 : v_[channel][1];
 }
