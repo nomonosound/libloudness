@@ -5,7 +5,9 @@
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 #include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <numeric>
+
 
 TEMPLATE_TEST_CASE("EBU Tech3341 I-Mode test cases", "[Tech3341][EBU][integrated][median]",
                    (Ebur128<EBUR128_MODE_I | EBUR128_MODE_S>),
@@ -96,6 +98,7 @@ TEMPLATE_TEST_CASE("EBU Tech3341 I-Mode test cases", "[Tech3341][EBU][integrated
         CHECK(meter_5chn.loudnessGlobalMedian() == Catch::Approx(target).scale(1.0/-target).epsilon(0.1));
     }
 }
+
 TEST_CASE("EBU Tech3341 S-Mode and M-Mode test cases", "[Tech3341][EBU][shortterm][momentary]") {
     constexpr unsigned long samplerate = 48000;
     constexpr unsigned int channels = 2;
@@ -185,17 +188,78 @@ TEST_CASE("EBU Tech3341 S-Mode and M-Mode test cases", "[Tech3341][EBU][shortter
         }
     }
 }
-TEST_CASE("EBU Tech3341 true peak test cases", "[Tech3341][EBU][peak][true-peak]") {
 
+TEST_CASE("EBU Tech3341 true peak test cases", "[Tech3341][EBU][peak][true-peak]") {
+    const unsigned long samplerate = GENERATE(48000, 96000, 191999);
+    constexpr unsigned int channels = 2;
+    Ebur128<EBUR128_MODE_TRUE_PEAK> meter(channels, samplerate);
+    UNSCOPED_INFO(samplerate);
+    SECTION("Test case 15"){
+        const double target = -6.0;
+        auto sine_wave = sineWaveTP<double>(samplerate/4, samplerate, channels, 0.0, 0.5);
+        meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
+        CHECK(meter.samplePeak(0) == Catch::Approx(0.5));
+        CHECK(meter.samplePeak(1) == Catch::Approx(0.5));
+        CHECK(20*std::log10(meter.truePeak(0)) == Catch::Approx(target).scale(1.0/-target).epsilon(0.2));
+        CHECK(20*std::log10(meter.truePeak(1)) == Catch::Approx(target).scale(1.0/-target).epsilon(0.2));
+    }
+    SECTION("Test case 16"){
+        const double target = -6.0;
+        auto sine_wave = sineWaveTP<double>(samplerate/4, samplerate, channels, 45.0, 0.5);
+        meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
+        CHECK(20*std::log10(meter.truePeak(0)) == Catch::Approx(target).scale(1.0/-target).epsilon(0.2));
+        CHECK(20*std::log10(meter.truePeak(1)) == Catch::Approx(target).scale(1.0/-target).epsilon(0.2));
+    }
+    SECTION("Test case 17"){
+        const double target = -6.0;
+        auto sine_wave = sineWaveTP<double>(samplerate/6, samplerate, channels, 60.0, 0.5);
+        meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
+        CHECK(20*std::log10(meter.truePeak(0)) == Catch::Approx(target).scale(1.0/-target).epsilon(0.2));
+        CHECK(20*std::log10(meter.truePeak(1)) == Catch::Approx(target).scale(1.0/-target).epsilon(0.2));
+    }
+    SECTION("Test case 18"){
+        const double target = -6.0;
+        auto sine_wave = sineWaveTP<double>(samplerate/8, samplerate, channels, 67.5, 0.5);
+        meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
+        CHECK(20*std::log10(meter.truePeak(0)) == Catch::Approx(target).scale(1.0/-target).epsilon(0.2));
+        CHECK(20*std::log10(meter.truePeak(1)) == Catch::Approx(target).scale(1.0/-target).epsilon(0.2));
+    }
+    SECTION("Test case 19"){
+        const double target = 3.0;
+        auto sine_wave = sineWaveTP<double>(samplerate/4, samplerate, channels, 45.0, 1.41);
+        meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
+        CHECK(20*std::log10(meter.truePeak(0)) == Catch::Approx(target).scale(1.0/-target).epsilon(0.2));
+        CHECK(20*std::log10(meter.truePeak(1)) == Catch::Approx(target).scale(1.0/-target).epsilon(0.2));
+    }
 }
-TEST_CASE("Benchmark Integrated Loudness", "[.benchmark][Integrated]")
+
+TEST_CASE("Benchmark Integrated Loudness", "[.benchmark][integrated]")
 {
     constexpr unsigned long samplerate = 48000;
     constexpr unsigned int channels = 2;
-    Ebur128<EBUR128_MODE_I | EBUR128_MODE_S> meter(channels, samplerate);
-    Ebur128<EBUR128_MODE_I | EBUR128_MODE_S | EBUR128_MODE_HISTOGRAM> meter_hist(channels, samplerate);
+    auto sine_wave = sineWave<double>(1000.0, samplerate, 60*samplerate, channels, -23.0);
     BENCHMARK_ADVANCED("Benchmark sine wave")(Catch::Benchmark::Chronometer chronometer){
-        auto sine_wave = sineWave<double>(1000.0, samplerate, 60*samplerate, channels, -23.0);
+        Ebur128<EBUR128_MODE_I | EBUR128_MODE_S> meter(channels, samplerate);
+        chronometer.measure([&sine_wave, &meter, frames = 60*samplerate / channels]{
+            meter.addFrames(sine_wave.data(), frames);
+            return meter.loudnessGlobal();
+        });
+    };
+    BENCHMARK_ADVANCED("Benchmark sine wave hist")(Catch::Benchmark::Chronometer chronometer){
+        Ebur128<EBUR128_MODE_I | EBUR128_MODE_S | EBUR128_MODE_HISTOGRAM> meter(channels, samplerate);
+        chronometer.measure([&sine_wave, &meter, frames = 60*samplerate / channels]{
+            meter.addFrames(sine_wave.data(), frames);
+            return meter.loudnessGlobal();
+        });
+    };
+}
+TEST_CASE("Benchmark True Peak", "[.benchmark][integrated][true-peak]")
+{
+    constexpr unsigned long samplerate = 48000;
+    constexpr unsigned int channels = 2;
+    auto sine_wave = sineWave<double>(1000.0, samplerate, 60*samplerate, channels, -23.0);
+    BENCHMARK_ADVANCED("Benchmark sine wave")(Catch::Benchmark::Chronometer chronometer){
+        Ebur128<EBUR128_MODE_I | EBUR128_MODE_TRUE_PEAK> meter(channels, samplerate);
         chronometer.measure([&sine_wave, &meter, frames = 60*samplerate / channels]{
             meter.addFrames(sine_wave.data(), frames);
             return meter.loudnessGlobal();

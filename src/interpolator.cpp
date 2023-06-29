@@ -4,6 +4,7 @@
 #include <numbers>
 
 #include "utils.hpp"
+#include <assert.h>
 
 static constexpr double ALMOST_ZERO = 0.000001;
 
@@ -11,14 +12,15 @@ Interpolator::Interpolator(unsigned int taps, unsigned int factor, unsigned int 
     : factor_(factor),
       channels_(channels),
       delay_((taps + factor - 1) / factor),
-      out_stride_(channels * factor),
-      zi_(0),
-      z_(std::vector<std::vector<float>>(channels, std::vector<float>(delay_)))
+      z_(std::vector<std::vector<float>>(channels, std::vector<float>(delay_))),
+      peaks_(channels)
 {
+    assert (taps % 2 == 1); // Assume odd number of taps
+
     /* Initialize the filter memory
      * One subfilter per interpolation factor. */
     filter_ = std::vector<InterpFilter>(
-        factor, {.index = std::vector<unsigned int>(delay_), .coeff = std::vector<double>(delay_)});
+                factor, {.indicies = {std::vector<unsigned int>()}, .coeff = {}});
 
     /* Calculate the filter coefficients */
     for (unsigned int j = 0; j < taps; j++) {
@@ -32,45 +34,27 @@ Interpolator::Interpolator(unsigned int taps, unsigned int factor, unsigned int 
         if (std::abs(c) > ALMOST_ZERO) { /* Ignore any zero coeffs. */
             /* Put the coefficient into the correct subfilter */
             const unsigned int f = j % factor;
-            const unsigned int t = filter_[f].count++;
-            filter_[f].coeff[t] = c;
-            filter_[f].index[t] = j / factor;
+            filter_[f].coeff.push_back(c);
+            filter_[f].indicies[0].push_back(j / factor);
         }
+    }
+    // Precalculate buffer indicies for each tap for each buffer index
+    for (auto& filter : filter_){
+        std::vector<std::vector<unsigned int>> indicies(delay_);
+        for (size_t i = 0; i < delay_; ++i){
+            for (size_t t = 0; t < filter.coeff.size(); ++t){
+                if (filter.indicies[0][t] > i){
+                    indicies[i].push_back(i + delay_ - filter.indicies[0][t]);
+                } else {
+                    indicies[i].push_back(i - filter.indicies[0][t]);
+                }
+            }
+        }
+        filter.indicies = indicies;
     }
 }
 
-size_t Interpolator::process(size_t frames, const float* in, float* out)
-{
-    float* outp = nullptr;
-    double acc = 0;
-    double c = 0;
-
-    for (size_t frame = 0; frame < frames; frame++) {
-        for (unsigned int chan = 0; chan < channels_; chan++) {
-            /* Add sample to delay buffer */
-            z_[chan][zi_] = *in++;
-            /* Apply coefficients */
-            outp = out + chan;
-            for (unsigned int f = 0; f < factor_; f++) {
-                acc = 0.0;
-                for (unsigned int t = 0; t < filter_[f].count; t++) {
-                    int i = static_cast<int>(zi_) - static_cast<int>(filter_[f].index[t]);
-                    if (i < 0) {
-                        i += static_cast<int>(delay_);
-                    }
-                    c = filter_[f].coeff[t];
-                    acc += static_cast<double>(z_[chan][i]) * c;
-                }
-                *outp = static_cast<float>(acc);
-                outp += channels_;
-            }
-        }
-        out += out_stride_;
-        zi_++;
-        if (zi_ == delay_) {
-            zi_ = 0;
-        }
-    }
-
-    return frames * factor_;
+double Interpolator::peak(unsigned int channel) const {
+    assert(channel < channels_);
+    return peaks_[channel];
 }

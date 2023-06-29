@@ -44,7 +44,7 @@ void HistogramCalculator::addShortTermBlock(double energy)
 ValueCounter HistogramCalculator::relativeThreshold() const
 {
     return {
-        .counter = std::accumulate(block_energy_histogram.cbegin(), block_energy_histogram.cend(), 0UL),
+        .counter = std::reduce(block_energy_histogram.cbegin(), block_energy_histogram.cend(), 0UL),
         .sum = std::transform_reduce(block_energy_histogram.cbegin(), block_energy_histogram.cend(), histogram_energies.cbegin(), 0.0)
     };
 }
@@ -179,7 +179,7 @@ bool BlockListCalculator::setMaxHistory(unsigned long history)
 }
 ValueCounter BlockListCalculator::relativeThreshold() const
 {
-    return {.counter = block_list_.size(), .sum = std::accumulate(block_list_.cbegin(), block_list_.cend(), 0.0)};
+    return {.counter = block_list_.size(), .sum = std::reduce(block_list_.cbegin(), block_list_.cend(), 0.0)};
 }
 
 ValueCounter BlockListCalculator::gatedLoudness(double relative_threshold) const
@@ -220,7 +220,7 @@ double BlockListCalculator::loudnessRangeMultiple(const std::vector<const BlockL
 
     std::sort(stl_vector.begin(), stl_vector.end());
 
-    const double stl_power = std::accumulate(stl_vector.begin(), stl_vector.end(), 0.0) / static_cast<double>(stl_size);
+    const double stl_power = std::reduce(stl_vector.begin(), stl_vector.end(), 0.0) / static_cast<double>(stl_size);
     const double stl_integrated = minus_twenty_decibels * stl_power;
 
     double* stl_relgated = stl_vector.data();
@@ -237,14 +237,4 @@ double BlockListCalculator::loudnessRangeMultiple(const std::vector<const BlockL
     }
 
     return 0.0;
-}
-
-void LoudnessRangeCalculator::addHistCalculator(const HistogramCalculator& calc)
-{
-
-}
-
-double LoudnessRangeCalculator::getLoudnessRange() const
-{
-
 }

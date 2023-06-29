@@ -15,8 +15,8 @@ TEST_CASE("K-filter behaves as expected", "[k-filter]") {
     for (auto val : test_sine){
         filtered.push_back(filter.apply(val, 0));
     }
-    double z_before = std::accumulate(test_sine.cbegin(), test_sine.cend(), 0.0, [](auto sum, auto val){ return sum + val*val;}) / test_sine.size();
-    double z_after = std::accumulate(filtered.cbegin(), filtered.cend(), 0.0, [](auto sum, auto val){ return sum + val*val;}) / filtered.size();
+    double z_before = std::reduce(test_sine.cbegin(), test_sine.cend(), 0.0, [](auto sum, auto val){ return sum + val*val;}) / test_sine.size();
+    double z_after = std::reduce(filtered.cbegin(), filtered.cend(), 0.0, [](auto sum, auto val){ return sum + val*val;}) / filtered.size();
 
     double LUFS = -0.691 + 10*std::log10(2*z_after);
     double LUFS_unfiltered = -0.691 + 10*std::log10(2*z_before);

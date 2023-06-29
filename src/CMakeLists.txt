@@ -14,7 +14,6 @@ set(EBUR128_VERSION_MAJOR 1)
 set(EBUR128_VERSION 1.2.6)
 
 add_library(lufs_meter
-    ebur128.cpp
     ebur128.hpp
     detail/ebur128-impl.hpp
     detail/ebur128-impl.cpp
@@ -22,8 +21,6 @@ add_library(lufs_meter
     k-filter.hpp
     interpolator.cpp
     interpolator.hpp
-    true-peak-calculator.cpp
-    true-peak-calculator.hpp
     bs1770-calculator.cpp
     bs1770-calculator.hpp
     utils.hpp

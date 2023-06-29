@@ -8,6 +8,28 @@
 inline double dbFSToLinear(double dbFS) {
     return std::pow(10, dbFS / 20.0);
 }
+template<typename T>
+auto sineWaveTP(double frequency, double samplerate, unsigned int channels, double phase, double scale) -> std::vector<T> {
+    const long num_samples = std::lround(2*samplerate);
+    const double factor = 2 * std::numbers::pi * frequency / samplerate;
+    const double offset = phase / 360.0 * frequency;
+    std::vector<T> output;
+    output.reserve(num_samples*channels);
+    for (long i = 0; i < num_samples; ++i){
+        for (unsigned int c = 0; c < channels; ++c){
+            output.push_back(scale*std::sin(static_cast<T>(i*factor + offset)));
+        }
+    }
+    const long samples_10_ms = std::lround(samplerate/100);
+    for (long i = 0; i < samples_10_ms; ++i){
+        auto k = static_cast<double>(i) / static_cast<double>(samples_10_ms);
+        for (unsigned int c = 0; c < channels; ++c){
+            output[i*channels + c] *= k;
+            output[output.size() - 1 - i*channels - c] *= k;
+        }
+    }
+    return output;
+}
 
 template<typename T>
 auto sineWave(double frequency, double samplerate, long num_samples, unsigned int channels, const std::vector<double>& dbFS) -> std::vector<T> {

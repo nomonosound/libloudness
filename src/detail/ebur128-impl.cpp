@@ -16,7 +16,7 @@
 
 #include "bs1770-calculator.hpp"
 #include "k-filter.hpp"
-#include "true-peak-calculator.hpp"
+#include "interpolator.hpp"
 #include "utils.hpp"
 #include "constants.hpp"
 
@@ -24,10 +24,13 @@ namespace detail {
     struct Ebur128Impl {
         Ebur128Impl(unsigned int channels, unsigned long samplerate, unsigned int mode);
 
+        /** Number of subblocks per gating block. Each subblock is 100ms*/
+        static constexpr int num_subblocks = 4;
+
         void initChannelMap(size_t num_channels);
         void initFilter(double samplerate, unsigned int channels);
         double energyShortterm();
-        double calcGatingBlock(size_t frames_per_block, bool add_block);
+        void calcGatingBlock();
         double energyInInterval(size_t interval_frames);
         /** Filtered audio data (used as ring buffer). */
         std::vector<std::vector<double>> audio_data;
@@ -36,8 +39,10 @@ namespace detail {
         /** Current index for audio_data. */
         size_t audio_data_index = 0;
 
+        /** Data for subblocks for gating blocks */
         size_t calculated_audio_index = 0;
         std::vector<std::deque<double>> calculated_subblocks;
+
         /** The channel map. Has as many elements as there are channels. */
         std::vector<Channel> channel_map;
         /** How many samples fit in 100ms (rounded). */
@@ -52,13 +57,13 @@ namespace detail {
         size_t short_term_frame_counter = 0;
         /** Maximum sample peak, one per channel */
         std::vector<double> sample_peak;
-        std::vector<double> prev_sample_peak;
+        std::vector<double> last_sample_peak;
         /** Maximum true peak, one per channel */
         std::vector<double> true_peak;
         /** The maximum window duration in ms. */
         unsigned long window;
 
-        TruePeakCalculator resampler;
+        std::unique_ptr<Interpolator> resampler;
         std::unique_ptr<BS1770Calculator> bs1770_calculator;
     };
 
@@ -122,12 +127,11 @@ namespace detail {
         : calculated_subblocks(channels, std::deque<double>()),
           samples_in_100ms((samplerate + 5) / 10),
           /* the first block needs 400ms of audio data */
-          needed_frames(samples_in_100ms * 4),
+          needed_frames(samples_in_100ms * num_subblocks),
           filter(static_cast<double>(samplerate), channels),
           sample_peak(channels),
-          prev_sample_peak(channels),
-          true_peak(channels),
-          resampler(samplerate, channels)
+          last_sample_peak(channels),
+          true_peak(channels)
     {
         initChannelMap(channels);
 
@@ -154,36 +158,24 @@ namespace detail {
         else {
             bs1770_calculator = std::make_unique<BlockListCalculator>();
         }
+
+        if (mode & EBUR128_MODE_TRUE_PEAK) {
+            if (samplerate < 96000) {
+                resampler = std::make_unique<Interpolator>(49, 4, channels);
+            }
+            else if (samplerate < 192000) {
+                resampler = std::make_unique<Interpolator>(49, 2, channels);
+            }
+            else {
+                resampler = nullptr;
+            }
+        }
     }
 
     template <typename T>
     void Ebur128::filter(const T* src, size_t frames)
     {
-        static constexpr double scaling_factor = getScalingFactor<T>();
-
         ScopedFTZ guard;
-
-        // Find new sample peak
-        if ((mode & EBUR128_MODE_SAMPLE_PEAK) == EBUR128_MODE_SAMPLE_PEAK) {
-            for (size_t c = 0; c < channels; ++c) {
-                double max = 0.0;
-                for (size_t i = 0; i < frames; ++i) {
-                    const double cur = std::abs(static_cast<double>(src[i * channels + c]));
-                    if (cur > max) {
-                        max = cur;
-                    }
-                }
-                max /= scaling_factor;
-                if (max > pimpl->prev_sample_peak[c]) {
-                    pimpl->prev_sample_peak[c] = max;
-                }
-            }
-        }
-
-        // Find new true peak
-        if ((mode & EBUR128_MODE_TRUE_PEAK) == EBUR128_MODE_TRUE_PEAK) {
-            pimpl->resampler.process(src, frames);
-        }
 
         // Apply filter
         for (size_t c = 0; c < channels; ++c) {
@@ -192,7 +184,8 @@ namespace detail {
             }
             double* audio_data = pimpl->audio_data[c].data() + pimpl->audio_data_index;
             for (size_t i = 0; i < frames; ++i) {
-                audio_data[i] = pimpl->filter.apply(static_cast<double>(src[i * channels + c]) / scaling_factor, c);
+                audio_data[i] = pimpl->filter.apply(static_cast<double>(src[i * channels + c]) / getScalingFactor<T>(), c);
+                audio_data[i] *= audio_data[i];
             }
             #ifdef MANUALLY_FTZ
             pimpl->filter.manuallyFTZ(c);
@@ -201,25 +194,21 @@ namespace detail {
         pimpl->audio_data_index += frames;
     }
 
-    double Ebur128Impl::calcGatingBlock(size_t frames_per_block, bool add_block)
+    double Ebur128Impl::energyInInterval(size_t frames_per_block)
     {
         double sum = 0.0;
-        const size_t channels = channel_map.size();
-        for (size_t c = 0; c < channels; ++c) {
+        for (size_t c = 0; c < channel_map.size(); ++c) {
             if (channel_map[c] == Channel::UNUSED) {
                 continue;
             }
             double channel_sum = 0.0;
             if (audio_data_index < frames_per_block) {
-                // Read in the two parts of the circular buffer
-                channel_sum += std::transform_reduce(audio_data[c].cbegin(), audio_data[c].cbegin() + audio_data_index, 0.0,
-                                                     std::plus<>(), [](auto val){return val*val;});
-                channel_sum += std::transform_reduce(audio_data[c].crbegin(), audio_data[c].crbegin() + frames_per_block - audio_data_index, 0.0,
-                                                     std::plus<>(), [](auto val){return val*val;});
+                // Read over the seam in the circular buffer
+                channel_sum += std::reduce(audio_data[c].cbegin(), audio_data[c].cbegin() + audio_data_index, 0.0) +
+                               std::reduce(audio_data[c].crbegin(), audio_data[c].crbegin() + frames_per_block - audio_data_index, 0.0);
             }
             else {
-                channel_sum += std::transform_reduce(audio_data[c].cbegin() + audio_data_index - frames_per_block, audio_data[c].cbegin() + audio_data_index, 0.0,
-                                                     std::plus<>(), [](auto val){return val*val;});
+                channel_sum += std::reduce(audio_data[c].cbegin() + audio_data_index - frames_per_block, audio_data[c].cbegin() + audio_data_index, 0.0);
             }
             switch (channel_map[c]) {
                 case Channel::Mp110: case Channel::Mm110: case Channel::Mp060: case Channel::Mm060: case Channel::Mp090: case  Channel::Mm090:
@@ -235,13 +224,46 @@ namespace detail {
             sum += channel_sum;
         }
 
-        sum /= static_cast<double>(frames_per_block);
+        return sum / static_cast<double>(frames_per_block);
+    }
 
-        if (add_block && sum >= absolute_gate) {
+    void Ebur128Impl::calcGatingBlock()
+    {
+        const size_t channels = channel_map.size();
+        double sum = 0.0;
+        for (;calculated_audio_index + samples_in_100ms <= audio_data_index; calculated_audio_index += samples_in_100ms){
+            for (size_t c = 0; c < channels; ++c) {
+                calculated_subblocks[c].push_back(
+                    std::reduce(audio_data[c].cbegin() + calculated_audio_index, audio_data[c].cbegin() + calculated_audio_index + samples_in_100ms, 0.0)
+                );
+                if (calculated_subblocks[c].size() > num_subblocks) [[likely]] {
+                    calculated_subblocks[c].pop_front();
+                }
+            }
+        }
+        if (calculated_audio_index == audio_data_frames) {
+            calculated_audio_index = 0;
+        }
+        for (size_t c = 0; c < channels; ++c) {
+            if (channel_map[c] == Channel::UNUSED) {
+                continue;
+            }
+            switch (channel_map[c]) {
+                case Channel::Mp110: case Channel::Mm110: case Channel::Mp060: case Channel::Mm060: case Channel::Mp090: case  Channel::Mm090:
+                sum += 1.41 * std::reduce(calculated_subblocks[c].crbegin(), calculated_subblocks[c].crend(), 0.0);
+                break;
+            case Channel::DUAL_MONO:
+                sum += 2.0 * std::reduce(calculated_subblocks[c].crbegin(), calculated_subblocks[c].crend(), 0.0);
+                break;
+            default:
+                sum = std::reduce(calculated_subblocks[c].crbegin(), calculated_subblocks[c].crend(), sum);
+                break;
+            }
+        }
+        sum /= num_subblocks*samples_in_100ms;
+        if (sum >= absolute_gate) [[likely]] {
             bs1770_calculator->addBlock(sum);
         }
-
-        return sum;
     }
 
     void Ebur128::setChannel(unsigned int channel_number, Channel value)
@@ -272,7 +294,7 @@ namespace detail {
         if (channels != this->channels) {
             pimpl->calculated_subblocks.assign(channels, std::deque<double>());
             pimpl->sample_peak.assign(channels, 0.0);
-            pimpl->prev_sample_peak.assign(channels, 0.0);
+            pimpl->last_sample_peak.assign(channels, 0.0);
             pimpl->true_peak.assign(channels, 0.0);
 
             pimpl->initChannelMap(channels);
@@ -294,9 +316,19 @@ namespace detail {
         }
         pimpl->audio_data.assign(channels, std::vector<double>(pimpl->audio_data_frames));
 
-        pimpl->resampler.configure(samplerate, channels);
+        if (mode & EBUR128_MODE_TRUE_PEAK) {
+            if (samplerate < 96000) {
+                pimpl->resampler = std::make_unique<Interpolator>(49, 4, channels);
+            }
+            else if (samplerate < 192000) {
+                pimpl->resampler = std::make_unique<Interpolator>(49, 2, channels);
+            }
+            else {
+                pimpl->resampler = nullptr;
+            }
+        }
         /* the first block needs 400ms of audio data */
-        pimpl->needed_frames = pimpl->samples_in_100ms * 4;
+        pimpl->needed_frames = pimpl->samples_in_100ms * Ebur128Impl::num_subblocks;
         /* start at the beginning of the buffer */
         pimpl->audio_data_index = 0;
         /* reset short term frame counter */
@@ -338,7 +370,7 @@ namespace detail {
         pimpl->audio_data.assign(channels, std::vector<double>(pimpl->audio_data_frames));
 
         /* the first block needs 400ms of audio data */
-        pimpl->needed_frames = pimpl->samples_in_100ms * 4;
+        pimpl->needed_frames = pimpl->samples_in_100ms * Ebur128Impl::num_subblocks;
         /* start at the beginning of the buffer */
         pimpl->audio_data_index = 0;
         /* reset short term frame counter */
@@ -362,9 +394,35 @@ namespace detail {
     template <typename T>
     void Ebur128::addFrames(const T* src, size_t frames)
     {
+        // Find new sample peak
+        if ((mode & EBUR128_MODE_SAMPLE_PEAK) == EBUR128_MODE_SAMPLE_PEAK) {
+            for (size_t c = 0; c < channels; ++c) {
+                double max = 0.0;
+                for (size_t i = 0; i < frames; ++i) {
+                    const double cur = std::abs(static_cast<double>(src[i * channels + c]));
+                    if (cur > max) {
+                        max = cur;
+                    }
+                }
+                pimpl->last_sample_peak[c] = max / getScalingFactor<T>();
+                if (pimpl->last_sample_peak[c] > pimpl->sample_peak[c]) {
+                    pimpl->sample_peak[c] = pimpl->last_sample_peak[c];
+                }
+            }
+        }
+        // Find new true peak
+        if (pimpl->resampler) {
+            pimpl->resampler->clearPeaks();
+            ScopedFTZ guard;
+            pimpl->resampler->process(src, frames);
+            for (unsigned int c = 0; c < channels; c++) {
+                if (pimpl->resampler->peak(c) > pimpl->true_peak[c]) {
+                    pimpl->true_peak[c] = pimpl->resampler->peak(c);
+                }
+            }
+        }
+
         size_t src_index = 0;
-        pimpl->prev_sample_peak.assign(channels, 0.0);
-        pimpl->resampler.clearTruePeaks();
         while (frames > 0) {
             if (frames >= pimpl->needed_frames) {
                 filter(src + src_index, pimpl->needed_frames);
@@ -372,7 +430,7 @@ namespace detail {
                 frames -= pimpl->needed_frames;
                 /* calculate the new gating block */
                 if ((mode & EBUR128_MODE_I) == EBUR128_MODE_I) {
-                    pimpl->calcGatingBlock(pimpl->samples_in_100ms * 4, true);
+                    pimpl->calcGatingBlock();
                 }
                 if ((mode & EBUR128_MODE_LRA) == EBUR128_MODE_LRA) {
                     pimpl->short_term_frame_counter += pimpl->needed_frames;
@@ -398,14 +456,6 @@ namespace detail {
                 }
                 pimpl->needed_frames -= static_cast<unsigned long>(frames);
                 frames = 0;
-            }
-        }
-        for (unsigned int c = 0; c < channels; c++) {
-            if (pimpl->prev_sample_peak[c] > pimpl->sample_peak[c]) {
-                pimpl->sample_peak[c] = pimpl->prev_sample_peak[c];
-            }
-            if (pimpl->resampler.prevTruePeak(c) > pimpl->true_peak[c]) {
-                pimpl->true_peak[c] = pimpl->resampler.prevTruePeak(c);
             }
         }
     }
@@ -443,11 +493,6 @@ namespace detail {
         return above_rel_counter == 0 ? -HUGE_VAL : energyToLoudness(gated_loudness / static_cast<double>(above_rel_counter));
     }
 
-    double Ebur128Impl::energyInInterval(size_t interval_frames)
-    {
-        return calcGatingBlock(interval_frames, false);
-    }
-
     double Ebur128Impl::energyShortterm()
     {
         return energyInInterval(samples_in_100ms * 30);
@@ -473,7 +518,7 @@ namespace detail {
             throw std::invalid_argument("Given window too large for current mode");
         }
 
-        const double energy = pimpl->calcGatingBlock(interval_frames, false);
+        const double energy = pimpl->energyInInterval(interval_frames);
 
         return energy <= 0.0 ? -HUGE_VAL : energyToLoudness(energy);
     }
@@ -509,13 +554,13 @@ namespace detail {
         return pimpl->sample_peak[channel_index];
     }
 
-    double Ebur128::prevSamplePeak(unsigned int channel_number) const
+    double Ebur128::lastSamplePeak(unsigned int channel_number) const
     {
         if (channel_number >= channels) {
             throw std::invalid_argument("Invalid channel index");
         }
 
-        return pimpl->prev_sample_peak[channel_number];
+        return pimpl->last_sample_peak[channel_number];
     }
 
     double Ebur128::truePeak(unsigned int channel_number) const
@@ -527,14 +572,17 @@ namespace detail {
         return std::max(pimpl->true_peak[channel_number], pimpl->sample_peak[channel_number]);
     }
 
-    double Ebur128::prevTruePeak(unsigned int channel_number) const
+    double Ebur128::lastTruePeak(unsigned int channel_number) const
     {
         if (channel_number >= channels) {
             throw std::invalid_argument("Invalid channel index");
         }
+        if (pimpl->resampler){
+            return std::max(static_cast<double>(pimpl->resampler->peak(channel_number)),
+                            pimpl->last_sample_peak[channel_number]);
+        }
+        return pimpl->last_sample_peak[channel_number];
 
-        return std::max(static_cast<double>(pimpl->resampler.prevTruePeak(channel_number)),
-                        pimpl->prev_sample_peak[channel_number]);
     }
 
     double loudnessRangeMultipleHist(const std::vector<const Ebur128Impl*>& meters)

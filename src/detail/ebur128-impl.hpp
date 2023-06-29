@@ -103,9 +103,9 @@ namespace detail {
         double loudnessGlobalMedian();
 
         double samplePeak(unsigned int channel_number) const;
-        double prevSamplePeak(unsigned int channel_number) const;
+        double lastSamplePeak(unsigned int channel_number) const;
         double truePeak(unsigned int channel_number) const;
-        double prevTruePeak(unsigned int channel_number) const;
+        double lastTruePeak(unsigned int channel_number) const;
 
         double relativeThreshold();
 

@@ -12,8 +12,7 @@ static inline double energyToLoudness(double energy) { return 10 * std::log10(en
 consteval double loudnessToEnergy(double lufs) { return gcem::pow(10.0, (lufs + 0.691) / 10.0); }
 
 template <typename T>
-inline T sinc(T x)
-    requires std::floating_point<T>
+inline T sinc(T x) requires std::floating_point<T>
 {
     return std::sin(x) / x;
 }
@@ -32,16 +31,14 @@ static constexpr bool safe_size_mul(T nmemb, T size, T* result) requires std::un
 }
 
 template <typename T>
-consteval double getScalingFactor()
-    requires std::integral<T>
+consteval double getScalingFactor() requires std::integral<T>
 {
     return std::max<double>(-static_cast<double>(std::numeric_limits<T>::min()),
                             static_cast<double>(std::numeric_limits<T>::max()));
 }
 
 template <typename T>
-consteval double getScalingFactor()
-    requires std::floating_point<T>
+consteval double getScalingFactor() requires std::floating_point<T>
 {
     return 1.0;
 }
