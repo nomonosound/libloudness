@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
-#include <assert.h>
+#include <cassert>
 #include <catch2/matchers/catch_matchers_templated.hpp>
 
 inline double dbFSToLinear(double dbFS) {

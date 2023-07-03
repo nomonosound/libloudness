@@ -13,7 +13,7 @@ consteval std::array<double, HistogramCalculator::HISTOGRAM_SIZE> getHistogramEn
 {
     std::array<double, HistogramCalculator::HISTOGRAM_SIZE> histogram_energies;
     for (unsigned int i = 0; i < histogram_energies.size(); ++i) {
-        histogram_energies[i] = loudnessToEnergy(static_cast<double>(i) / 10.0 - 69.95);
+        histogram_energies[i] = loudnessToEnergy(static_cast<double>(i) / 10.0 + abs_threshold + 0.05);
     }
     return histogram_energies;
 }
@@ -22,13 +22,13 @@ constexpr double minimum_energy = absolute_gate;
 
 constexpr size_t findHistogramIndex(double energy)
 {
-    constexpr double max = loudnessToEnergy((HistogramCalculator::HISTOGRAM_SIZE - 1) / 10.0 - 70.0);
+    constexpr double max = loudnessToEnergy((HistogramCalculator::HISTOGRAM_SIZE - 1) / 10.0 + abs_threshold);
     if (energy >= max) [[unlikely]]{
         return HistogramCalculator::HISTOGRAM_SIZE - 1;
     } else if (energy <= minimum_energy) [[unlikely]]{
         return 0;
     } else [[likely]]{
-        return static_cast<size_t>(10.0 * (10.0 * std::log10(energy) + 70.0 - 0.691));
+        return static_cast<size_t>(10.0 * (energyToLoudness(energy) - abs_threshold));
     }
 }
 
@@ -163,12 +163,12 @@ void BlockListCalculator::addShortTermBlock(double energy)
     short_term_block_list_.push_back(energy);
 }
 
-bool BlockListCalculator::setMaxHistory(unsigned long history)
+bool BlockListCalculator::setMaxHistory(unsigned long history_ms)
 {
-    if (history == history_) return false;
-    history_ = history;
-    block_list_max_ = history / 100;
-    st_block_list_max_ = history / 3000;
+    if (history_ms == history_) return false;
+    history_ = history_ms;
+    block_list_max_ = history_ms / 100;
+    st_block_list_max_ = history_ms / 3000;
     if (block_list_.size() > block_list_max_) {
         block_list_.resize(block_list_max_);
     }

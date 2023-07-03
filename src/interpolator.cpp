@@ -4,7 +4,7 @@
 #include <numbers>
 
 #include "utils.hpp"
-#include <assert.h>
+#include <cassert>
 
 static constexpr double ALMOST_ZERO = 0.000001;
 
@@ -15,7 +15,7 @@ Interpolator::Interpolator(unsigned int taps, unsigned int factor, unsigned int 
       z_(std::vector<std::vector<float>>(channels, std::vector<float>(delay_))),
       peaks_(channels)
 {
-    assert (taps % 2 == 1); // Assume odd number of taps
+    assert(taps % 2 == 1); // Assert odd number of taps
 
     /* Initialize the filter memory
      * One subfilter per interpolation factor. */

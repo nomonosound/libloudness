@@ -357,6 +357,40 @@ TEST_CASE("File dependent tests from Tech 3341 and Tech 3342", "[.][Tech3341][Te
     }
 }
 
+TEST_CASE("Test multi-global-loudness", "[integrated][multi]"){
+    constexpr unsigned long samplerate = 48000;
+    constexpr unsigned int channels = 2;
+    constexpr double target = -23.0;
+    auto sine_wave1 = sineWave<double>(1000, samplerate, 20*samplerate, channels, -36.0);
+    auto sine_wave2 = sineWave<double>(1000, samplerate, 60*samplerate, channels, -23.0);
+
+    std::vector<Ebur128<EBUR128_MODE_I>> meters;
+    meters.emplace_back(channels, samplerate);
+    meters.emplace_back(channels, samplerate);
+
+    meters[0].addFrames(sine_wave1.data(), 20*samplerate);
+    meters[1].addFrames(sine_wave2.data(), 60*samplerate);
+
+    CHECK_THAT(loudnessGlobalMultiple(meters), Catch::Matchers::WithinAbs(target, 0.1));
+}
+
+TEST_CASE("Test multi-loudness-range", "[loudness-range][multi]"){
+    constexpr unsigned long samplerate = 48000;
+    constexpr unsigned int channels = 2;
+    constexpr double target = 13.0;
+    auto sine_wave1 = sineWave<double>(1000, samplerate, 20*samplerate, channels, -36.0);
+    auto sine_wave2 = sineWave<double>(1000, samplerate, 60*samplerate, channels, -23.0);
+
+    std::vector<Ebur128<EBUR128_MODE_LRA>> meters;
+    meters.emplace_back(channels, samplerate);
+    meters.emplace_back(channels, samplerate);
+
+    meters[0].addFrames(sine_wave1.data(), 20*samplerate);
+    meters[1].addFrames(sine_wave2.data(), 60*samplerate);
+
+    CHECK_THAT(loudnessRangeMultiple(meters), Catch::Matchers::WithinAbs(target, 0.1));
+}
+
 TEST_CASE("Benchmark Integrated Loudness", "[.benchmark][integrated]")
 {
     constexpr unsigned long samplerate = 48000;

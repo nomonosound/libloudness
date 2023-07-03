@@ -1,6 +1,7 @@
 #include "k-filter.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <numbers>
 #include <numeric>
@@ -9,7 +10,7 @@
 
 KFilter::KFilter(double samplerate, unsigned int channels) : v_(channels, filter_state{})
 {
-    // TODO: assert samplerate > 0
+    assert(samplerate > 0);
     constexpr double f0 = 1681.974450955533;
     constexpr double G = 3.999843853973347;
     constexpr double Vh = gcem::pow(10.0, G / 20.0);

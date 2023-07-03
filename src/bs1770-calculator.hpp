@@ -17,7 +17,7 @@ public:
     virtual ~BS1770Calculator() = default;
     virtual void addBlock(double energy) = 0;
     virtual void addShortTermBlock(double energy) = 0;
-    virtual bool setMaxHistory(unsigned long /*history*/) { return false; };
+    virtual bool setMaxHistory(unsigned long /*history_ms*/) { return false; };
 
     virtual ValueCounter relativeThreshold() const = 0;
     virtual ValueCounter gatedLoudness(double relative_threshold) const = 0;
@@ -28,7 +28,7 @@ class BlockListCalculator : public BS1770Calculator {
 public:
     void addBlock(double energy) override;
     void addShortTermBlock(double energy) override;
-    bool setMaxHistory(unsigned long history) override;
+    bool setMaxHistory(unsigned long history_ms) override;
     ValueCounter relativeThreshold() const override;
     ValueCounter gatedLoudness(double relative_threshold) const override;
     double gatedMedianLoudness(double relative_threshold) const override;

@@ -64,11 +64,11 @@ enum mode : unsigned {
     /** can call Ebur128::loudnessGlobal_* and Ebur128::relativeThreshold */
     EBUR128_MODE_I = (1U << 2U) | EBUR128_MODE_M,
     /** can call Ebur128::loudnessRange */
-    EBUR128_MODE_LRA = (1U << 3U) | EBUR128_MODE_S,
+    EBUR128_MODE_LRA = (1U << 3U) | EBUR128_MODE_M,
     /** can call Ebur128::samplePeak */
-    EBUR128_MODE_SAMPLE_PEAK = (1U << 4U) | EBUR128_MODE_M,
+    EBUR128_MODE_SAMPLE_PEAK = (1U << 4U),
     /** can call Ebur128::truePeak */
-    EBUR128_MODE_TRUE_PEAK = (1U << 5U) | EBUR128_MODE_M | EBUR128_MODE_SAMPLE_PEAK,
+    EBUR128_MODE_TRUE_PEAK = (1U << 5U) | EBUR128_MODE_SAMPLE_PEAK,
     /** uses histogram algorithm to calculate loudness */
     EBUR128_MODE_HISTOGRAM = (1U << 6U)
 };
@@ -83,6 +83,10 @@ namespace detail {
 
         Ebur128(unsigned int channels, unsigned long samplerate, unsigned int mode);
         ~Ebur128();
+        Ebur128(const Ebur128&) = delete;
+        Ebur128& operator=(const Ebur128&) = delete;
+        Ebur128(Ebur128&& other);
+        Ebur128& operator=(Ebur128&& other) = delete;
 
         void setChannel(unsigned int channel_number, Channel value);
         bool changeParameters(unsigned int channels, unsigned long samplerate);
@@ -91,6 +95,9 @@ namespace detail {
 
         template <typename T>
         void addFrames(const T* src, size_t frames);
+
+        template <typename T>
+        void addFrames(const T** src, size_t frames);
 
         // EBU-R128
         double loudnessGlobal();
@@ -109,21 +116,15 @@ namespace detail {
 
         double relativeThreshold();
 
-        std::unique_ptr<struct Ebur128Impl> pimpl; /**< Internal state. */
+        static double loudnessGlobalMultiple(const std::vector<const Ebur128*>& meters);
+        static double loudnessRangeMultipleHist(const std::vector<const Ebur128*>& meters);
+        static double loudnessRangeMultipleBlocks(const std::vector<const Ebur128*>& meters);
 
     private:
-        template <typename T>
-        void filter(const T* src, size_t frames);
-
+        std::unique_ptr<struct Ebur128Impl> pimpl; /**< Internal state. */
         const unsigned int mode;    /**< The current mode. */
         unsigned int channels;      /**< The number of channels. */
         unsigned long samplerate;   /**< The sample rate. */
     };
-
-    double loudnessGlobalMultiple(const std::vector<const Ebur128Impl*>& meters);
-    double loudnessRangeMultipleHist(const std::vector<const Ebur128Impl*>& meters);
-    double loudnessRangeMultipleBlocks(const std::vector<const Ebur128Impl*>& meters);
-
-
 } // namespace detail
 #endif /* EBUR128_IMPL_HPP_ */

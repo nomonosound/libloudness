@@ -5,8 +5,8 @@
 #include <ranges>
 #include <algorithm>
 #include <vector>
-
 #include <gcem.hpp>
+
 static inline double energyToLoudness(double energy) { return 10 * std::log10(energy) - 0.691; }
 
 consteval double loudnessToEnergy(double lufs) { return gcem::pow(10.0, (lufs + 0.691) / 10.0); }

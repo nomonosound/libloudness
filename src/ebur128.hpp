@@ -18,9 +18,10 @@
 #include <ranges>
 
 
-template <unsigned mode> requires (mode != 0U)
+template <unsigned Mode> requires (Mode != 0U)
 class Ebur128 {
 public:
+    static constexpr unsigned mode = Mode;
     /** @brief Initialize library state.
      *
      *  @tparam mode       A mode bitmap from the Mode enum, decides capabilities of the meter
@@ -74,7 +75,7 @@ public:
      *  @return bool if window duration was changed or not
      *  @throws std::invalid_argument if window is too large
      */
-    bool setMaxWindow(unsigned long window) {
+    bool setMaxWindow(unsigned long window) requires ((mode & EBUR128_MODE_M) == EBUR128_MODE_M){
         return meter.setMaxWindow(window);
     }
 
@@ -151,7 +152,7 @@ public:
      *  @param  out loudness in LUFS. -HUGE_VAL if result is negative infinity.
      *  @throws std::invalid_argument if window is larger than supported
      */
-    double loudnessWindow(unsigned long window) {
+    double loudnessWindow(unsigned long window) requires ((mode & EBUR128_MODE_M) == EBUR128_MODE_M) {
         return meter.loudnessWindow(window);
     }
 
@@ -237,6 +238,12 @@ public:
         return meter.relativeThreshold();
     }
 
+    template<std::ranges::range Range>
+    friend double loudnessGlobalMultiple(const Range& meters);
+
+    template<std::ranges::range Range>
+    friend double loudnessRangeMultiple(const Range& meters);
+
 private:
     detail::Ebur128 meter;
 };
@@ -246,15 +253,19 @@ private:
  *  @param  meters range of loudness meters
  *  @return integrated loudness in LUFS. -HUGE_VAL if result is negative infinity.
  */
-template<unsigned mode>
-double loudnessGlobalMultiple(std::ranges::range auto&& meters) requires ((mode & EBUR128_MODE_I) == EBUR128_MODE_I)
+template<std::ranges::range Range>
+double loudnessGlobalMultiple(const Range& meters)
 {
-    std::vector<const detail::Ebur128Impl*> pimpls;
-    meters.reserve(meters.size());
+    using Meter = std::ranges::range_value_t<Range>;
+    static_assert(std::same_as<Meter, Ebur128<Meter::mode>>);
+    static_assert((Meter::mode & EBUR128_MODE_I) == EBUR128_MODE_I);
+
+    std::vector<const detail::Ebur128*> pimpls;
+    pimpls.reserve(meters.size());
     for (const auto& meter : meters){
-        meters.push_back(meter->meter.pimpl.get());
+        pimpls.push_back(&meter.meter);
     }
-    return detail::loudnessGlobalMultiple(pimpls);
+    return detail::Ebur128::loudnessGlobalMultiple(pimpls);
 }
 
 /** @brief Get loudness range (LRA) in LU across multiple instances.
@@ -264,18 +275,22 @@ double loudnessGlobalMultiple(std::ranges::range auto&& meters) requires ((mode 
  *  @param  meters range of loudness meters
  *  @return loudness range (LRA) in LU.
  */
-template<unsigned mode>
-double loudnessRangeMultiple(std::ranges::range auto&& meters) requires ((mode & EBUR128_MODE_LRA) == EBUR128_MODE_LRA)
+template<std::ranges::range Range>
+double loudnessRangeMultiple(const Range& meters)
 {
-    std::vector<const detail::Ebur128Impl*> pimpls;
-    meters.reserve(meters.size());
+    using Meter = std::ranges::range_value_t<Range>;
+    static_assert(std::same_as<Meter, Ebur128<Meter::mode>>);
+    static_assert((Meter::mode & EBUR128_MODE_LRA) == EBUR128_MODE_LRA);
+
+    std::vector<const detail::Ebur128*> pimpls;
+    pimpls.reserve(meters.size());
     for (const auto& meter : meters){
-        meters.push_back(meter->meter.pimpl.get());
+        pimpls.push_back(&meter.meter);
     }
-    if constexpr (mode & EBUR128_MODE_HISTOGRAM){
-        return detail::loudnessRangeMultipleHist(pimpls);
+    if constexpr ((Meter::mode & EBUR128_MODE_HISTOGRAM) == EBUR128_MODE_HISTOGRAM) {
+        return detail::Ebur128::loudnessRangeMultipleHist(pimpls);
     } else {
-        return detail::loudnessRangeMultipleBlocks(pimpls);
+        return detail::Ebur128::loudnessRangeMultipleBlocks(pimpls);
     }
 }
 
