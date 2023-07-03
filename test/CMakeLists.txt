@@ -4,13 +4,6 @@ set(ENABLE_TESTS OFF CACHE BOOL "Build test binaries, needs libsndfile")
 set(ENABLE_FUZZER OFF CACHE BOOL "Build fuzzer binary")
 
 
-#include(FetchContent)
-
-#FetchContent_Declare(doctest
-#                     GIT_REPOSITORY https://github.com/doctest/doctest.git
-#                     GIT_TAG        v2.4.10) # update version number if needed
-#FetchContent_MakeAvailable(doctest)
-
 Include(FetchContent)
 
 FetchContent_Declare(
@@ -24,14 +17,14 @@ FetchContent_MakeAvailable(Catch2)
 add_executable(loudness_tests EXCLUDE_FROM_ALL)
 target_sources(loudness_tests
     PRIVATE
-#    main.cpp
     test-k-filter.cpp
     test-ebur128.cpp
     test-bs1770-calculator.cpp
     test-utilities.hpp
 )
 target_link_libraries(loudness_tests PRIVATE Catch2::Catch2WithMain lufs_meter)
-
+target_link_libraries(loudness_tests PRIVATE sndfile)
+target_compile_definitions(loudness_tests PRIVATE TEST_DIR="${CMAKE_SOURCE_DIR}/test/")
 
 
 if(ENABLE_FUZZER)

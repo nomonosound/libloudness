@@ -4,6 +4,7 @@
 #include <cmath>
 #include <vector>
 #include <assert.h>
+#include <catch2/matchers/catch_matchers_templated.hpp>
 
 inline double dbFSToLinear(double dbFS) {
     return std::pow(10, dbFS / 20.0);
@@ -52,4 +53,22 @@ auto sineWave(double frequency, double samplerate, long num_samples, unsigned in
     std::vector dbFSs(channels, dbFS);
     return sineWave<T>(frequency, samplerate, num_samples, channels, dbFSs);
 }
+
+class  AsymetricMarginMatcher final : public Catch::Matchers::MatcherGenericBase {
+public:
+    AsymetricMarginMatcher(double target, double lower_margin, double upper_margin)
+        : target_(target), lower_margin_(lower_margin), upper_margin_(upper_margin)
+    {
+    }
+    bool match(double const& matchee) const {
+        return (matchee + lower_margin_ >= target_) && (target_ + upper_margin_ >= matchee);
+    }
+    std::string describe() const override {
+        return "Check value is within specified upper and lower margin of target";
+    }
+private:
+    double target_;
+    double lower_margin_;
+    double upper_margin_;
+};
 #endif // TEST_UTILITIES
