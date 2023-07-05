@@ -5,14 +5,15 @@
 #include <cmath>
 
 #include "utils.hpp"
+#include "defines.hpp"
 #include <numeric>
 
 class Interpolator {
     /* Polyphase FIR interpolator */
 public:
     Interpolator(unsigned int taps, unsigned int factor, unsigned int channels);
-    template <typename T>
-    void process(const T* in, std::size_t frames);
+    template <ConstData T>
+    void process(T* in, std::size_t frames);
     double peak(unsigned int channel) const;
     void clearPeaks() {peaks_.assign(channels_, 0.0);}
     unsigned int factor() const { return factor_; };
@@ -34,16 +35,25 @@ private:
     std::vector<double> peaks_;
 };
 
-template <typename T>
-void Interpolator::process(const T* in, std::size_t frames)
+template <ConstData T>
+void Interpolator::process(T* in, std::size_t frames)
 {
     for (std::size_t frame = 0; frame < frames; frame++) {
         for (unsigned int chan = 0; chan < channels_; chan++) {
             /* Add sample to delay buffer */
-            if constexpr (std::is_floating_point_v<T>){
-                z_[chan][zi_] = static_cast<float>(*in++);
+            if constexpr (std::is_pointer_v<T>){
+                using U = std::remove_pointer_t<T>;
+                if constexpr (std::is_floating_point_v<U>){
+                    z_[chan][zi_] = static_cast<float>(in[chan][frame]);
+                } else {
+                    z_[chan][zi_] = static_cast<float>(static_cast<double>(in[chan][frame]) / getScalingFactor<U>());
+                }
             } else {
-                z_[chan][zi_] = static_cast<float>(static_cast<double>(*in++) / getScalingFactor<T>());
+                if constexpr (std::is_floating_point_v<T>){
+                    z_[chan][zi_] = static_cast<float>(*in++);
+                } else {
+                    z_[chan][zi_] = static_cast<float>(static_cast<double>(*in++) / getScalingFactor<T>());
+                }
             }
 
             /* Apply coefficients */

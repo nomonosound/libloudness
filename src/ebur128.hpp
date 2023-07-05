@@ -16,7 +16,12 @@
 
 #include <vector>
 #include <ranges>
+#include "defines.hpp"
 
+template <typename T>
+concept HasDataPointer = requires (T t) {
+   *t.data();
+};
 
 template <unsigned Mode> requires (Mode != 0U)
 class Ebur128 {
@@ -99,12 +104,50 @@ public:
 
     /** @brief Add frames to be processed.
      *
-     *  @param src    array of source frames. Channels must be interleaved.
-     *  @param frames number of frames. Not number of samples!
+     *  @param src    Pointer to array of source frames.
+     *                Either 1d interleaved, or 2d ordered channel, samples
+     *  @param frames Number of frames. Not number of samples!
      */
     template <typename T>
     void addFrames(const T* src, size_t frames) {
         meter.addFrames(src, frames);
+    }
+    template <typename T>
+    void addFrames(const T** src, size_t frames) {
+        meter.addFrames(src, frames);
+    }
+
+
+    /** @brief Add frames to be processed.
+     *
+     *  @param src    Range of individual channels to be processed.
+     *                Channels need to be continous
+     *  @param frames Number of frames. Not number of samples!
+     */
+    template <std::ranges::range Range>
+    void addFrames(Range src, size_t frames) {
+        using T = std::ranges::range_value_t<Range>;
+        if constexpr (std::is_pointer_v<T>){
+            using U = std::add_pointer_t<std::add_const_t<std::remove_pointer_t<T>>>;
+            if constexpr (HasDataPointer<Range>){
+                meter.addFrames(src.data(), frames);
+            } else {
+                std::vector<std::decay<T>> data;
+                for (auto ptr : src){
+                    data.push_back(ptr);
+                }
+                meter.addFrames(data.data(), frames);
+            }
+        } else if constexpr (HasDataPointer<T>){
+            using U = std::add_pointer_t<std::add_const_t<std::remove_pointer_t<decltype(src.begin()->data())>>>;
+            std::vector<U> data;
+            for (auto container : src){
+                data.push_back(container.data());
+            }
+            meter.addFrames(data.data(), frames);
+        } else {
+            meter.addFrames(src, frames);
+        }
     }
 
     /** @brief Get global integrated loudness in LUFS.
