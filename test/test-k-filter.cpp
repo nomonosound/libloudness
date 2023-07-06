@@ -7,7 +7,7 @@
 #include"utils.hpp"
 
 TEST_CASE("K-filter behaves as expected", "[k-filter]") {
-    KFilter filter(48000, 1);
+    loudness::KFilter filter(48000, 1);
 
     auto test_sine = sineWave<double>(1000.0, 48000.0, 10*48000, 2, -23.0);
     std::vector<double> filtered;
@@ -28,7 +28,7 @@ TEST_CASE("K-filter behaves as expected", "[k-filter]") {
 TEST_CASE("Benchmark K-filter", "[.benchmark][k-filter]"){
     BENCHMARK_ADVANCED("Benchmark sine wave")(Catch::Benchmark::Chronometer meter) {
         ScopedFTZ guard;
-        KFilter filter(48000, 1);
+        loudness::KFilter filter(48000, 1);
         auto test_sine = sineWave<double>(1000.0, 48000.0, 60*48000, 2, -23.0);
         auto output = std::vector<double>(test_sine.size());
         meter.measure([&test_sine, &filter, &output]{

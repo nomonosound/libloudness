@@ -1,12 +1,10 @@
 /* See COPYING file for copyright and license details. */
 
-#include "detail/ebur128-impl.hpp"
+#include "detail/meter-impl.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cassert>
-#include <cmath> /* You may have to define _USE_MATH_DEFINES if you use MSVC */
-#include <cstdio>
 #include <deque>
 #include <numeric>
 #include <type_traits>
@@ -15,38 +13,41 @@
 #include <gcem.hpp>
 
 #include "bs1770-calculator.hpp"
-#include "k-filter.hpp"
-#include "interpolator.hpp"
-#include "utils.hpp"
 #include "constants.hpp"
+#include "interpolator.hpp"
+#include "k-filter.hpp"
+#include "utils.hpp"
 
-constexpr int ms_momentary_block = 400;
-constexpr int m_subblocks = ms_momentary_block / 100;
-constexpr int ms_shortterm_block = 3000;
-constexpr int st_subblocks = ms_shortterm_block / 100;
+#include "oneapi/tbb/flow_graph.h"
 
-static_assert(ms_shortterm_block >= ms_momentary_block);
+namespace fg = oneapi::tbb::flow;
 
-namespace detail {
-    struct Ebur128Impl {
-        Ebur128Impl(unsigned int channels, unsigned long samplerate, unsigned int mode);
+namespace loudness::detail {
+    struct DataMessage {
+        loudness::DataType data;
+        size_t frames;
+    };
+
+    struct Impl {
+        Impl(unsigned int channels, unsigned long samplerate, unsigned int mode);
 
         /** Number of subblocks to store. Each subblock is 100ms*/
         static constexpr int num_subblocks = st_subblocks;
 
         void initChannelMap(size_t num_channels);
         void recalcChannelWeights();
-        void initFilter(double samplerate, unsigned int channels);
         void calcSubBlocks();
         void addIntgrationBlock();
         void addShorttermBlock();
-        double energyInInterval(size_t interval_frames);
+        [[nodiscard]] double energyInInterval(size_t interval_frames) const;
+
+        void addFramesLoudness(DataType src, size_t frames);
 
         template <ConstData T>
         void filter(T* src, size_t offset, size_t frames);
 
         template <ConstData T>
-        void findSamplePeaks(T* src, size_t frames);
+        void findSamplePeaks(T* src, size_t frames, size_t channels);
 
         /** Filtered audio data (used as ring buffer). */
         std::vector<std::vector<double>> audio_data;
@@ -80,13 +81,19 @@ namespace detail {
         /** Maximum true peak, one per channel */
         std::vector<double> true_peak;
         /** The maximum window duration in ms. */
-        unsigned long window;
+        unsigned long window_ms;
 
         std::unique_ptr<Interpolator> resampler;
         std::unique_ptr<BS1770Calculator> bs1770_calculator;
+
+        unsigned int mode;
+        oneapi::tbb::task_group_context ctx;
+        fg::graph graph;
+        fg::broadcast_node<DataMessage> input_node;
+        std::list<fg::function_node<DataMessage>> nodes;
     };
 
-    void Ebur128Impl::initChannelMap(size_t num_channels)
+    void Impl::initChannelMap(size_t num_channels)
     {
         channel_map.resize(num_channels);
         if (num_channels == 4) {
@@ -132,7 +139,7 @@ namespace detail {
         recalcChannelWeights();
     }
 
-    void Ebur128Impl::recalcChannelWeights()
+    void Impl::recalcChannelWeights()
     {
         channel_weight.clear();
         for (const auto& channel : channel_map){
@@ -146,25 +153,25 @@ namespace detail {
             case Channel::UNUSED:
                 channel_weight.push_back(0.0);
                 break;
-            default:
+            [[likely]] default:
                 channel_weight.push_back(1.0);
             }
         }
     }
 
-    Ebur128::Ebur128(unsigned int channels, unsigned long samplerate, unsigned int mode)
+    Meter::Meter(unsigned int channels, unsigned long samplerate, unsigned int mode)
         : mode(mode), channels(channels), samplerate(samplerate)
     {
         assert(channels > 0 && channels <= MAX_CHANNELS);
         assert(samplerate >= MIN_SAMPLERATE && samplerate <= MAX_SAMPLERATE);
 
-        pimpl = std::make_unique<Ebur128Impl>(channels, samplerate, mode);
+        pimpl = std::make_unique<Impl>(channels, samplerate, mode);
     }
 
-    Ebur128::~Ebur128() = default;
-    Ebur128::Ebur128(Ebur128&& other) = default;
+    Meter::~Meter() = default;
+    Meter::Meter(Meter&& other) noexcept = default;
 
-    Ebur128Impl::Ebur128Impl(unsigned int channels, unsigned long samplerate, unsigned int mode)
+    Impl::Impl(unsigned int channels, unsigned long samplerate, unsigned int mode)
         : calculated_subblocks(channels, std::deque<double>()),
           samples_in_100ms((samplerate + 5) / 10),
           /* the first block needs 400ms of audio data */
@@ -172,32 +179,38 @@ namespace detail {
           k_filter(static_cast<double>(samplerate), channels),
           sample_peak(channels),
           last_sample_peak(channels),
-          true_peak(channels)
+          true_peak(channels),
+          mode(mode),
+          graph(ctx),
+          input_node(graph)
     {
         initChannelMap(channels);
 
-        if ((mode & EBUR128_MODE_S) == EBUR128_MODE_S) {
-            window = ms_shortterm_block;
-        }
-        else if ((mode & EBUR128_MODE_M) == EBUR128_MODE_M) {
-            window = ms_momentary_block;
-        }
-
-        audio_data_frames = samplerate * window / 1000;
-        if (audio_data_frames % samples_in_100ms) {
-            /* round up to multiple of samples_in_100ms */
-            audio_data_frames = (audio_data_frames + samples_in_100ms) - (audio_data_frames % samples_in_100ms);
-        }
-        audio_data.assign(channels, std::vector<double>(audio_data_frames));
-
-        if ((mode & EBUR128_MODE_HISTOGRAM) == EBUR128_MODE_HISTOGRAM) {
+        if ((mode & MODE_HISTOGRAM) == MODE_HISTOGRAM) {
             bs1770_calculator = std::make_unique<HistogramCalculator>();
         }
         else {
             bs1770_calculator = std::make_unique<BlockListCalculator>();
         }
 
-        if ((mode & EBUR128_MODE_TRUE_PEAK) == EBUR128_MODE_TRUE_PEAK) {
+        if ((mode & MODE_S) == MODE_S) {
+            window_ms = shortterm_block_ms;
+        }
+        else if ((mode & MODE_M) == MODE_M) {
+            window_ms = momentary_block_ms;
+        } else {
+            // Disable window
+            window_ms = 0;
+        }
+
+        audio_data_frames = samplerate * window_ms / 1000;
+        if (audio_data_frames % samples_in_100ms != 0) {
+            /* round up to multiple of samples_in_100ms */
+            audio_data_frames = (audio_data_frames + samples_in_100ms) - (audio_data_frames % samples_in_100ms);
+        }
+        audio_data.assign(channels, std::vector<double>(audio_data_frames));
+
+        if ((mode & MODE_TRUE_PEAK) == MODE_TRUE_PEAK) {
             if (samplerate < 96000) {
                 resampler = std::make_unique<Interpolator>(49, 4, channels);
             }
@@ -208,13 +221,44 @@ namespace detail {
                 resampler = nullptr;
             }
         }
+
+        const ScopedFTZ guard;
+        ctx.capture_fp_settings();
+        if ((mode & MODE_TRUE_PEAK) == MODE_TRUE_PEAK) {
+            for (size_t c = 0; c < channels; ++c){
+                nodes.emplace_back(graph, 1, [this, c] (const DataMessage& msg) {
+                    std::visit([this, c, frames = msg.frames](auto&& src){
+                        resampler->process(src, frames, c);
+                    }, msg.data);
+                    if (resampler->peak(c) > true_peak[c]) {
+                        true_peak[c] = resampler->peak(c);
+                    }
+                }, fg::queueing(), 2);
+                fg::make_edge(input_node, nodes.back());
+            }
+        }
+        // Sample peak so lightweight it is never worth parallelizing channels
+        if ((mode & MODE_SAMPLE_PEAK) == MODE_SAMPLE_PEAK) {
+                nodes.emplace_back(graph, 1, [this, channels] (const DataMessage& msg) {
+                    std::visit([this, channels, frames = msg.frames](auto&& src){
+                        for (size_t c = 0; c < channels; ++c){
+                            findSamplePeaks(src, frames, c);
+                        }
+                    }, msg.data);
+                });
+                fg::make_edge(input_node, nodes.back());
+        }
+        if ((mode & MODE_M) == MODE_M){
+            nodes.emplace_back(graph, 1, [this] (const DataMessage& msg){
+                addFramesLoudness(msg.data, msg.frames);
+            }, fg::queueing(), 1);
+            fg::make_edge(input_node, nodes.back());
+        }
     }
 
     template <ConstData T>
-    void Ebur128Impl::filter(T* src, size_t offset, size_t frames)
+    void Impl::filter(T* src, size_t offset, size_t frames)
     {
-        ScopedFTZ guard;
-
         // Apply filter
         const size_t channels = audio_data.size();
         for (size_t c = 0; c < channels; ++c) {
@@ -240,33 +284,30 @@ namespace detail {
         audio_data_index += frames;
     }
 
-
     template<ConstData T>
-    void Ebur128Impl::findSamplePeaks(T* src, size_t frames)
+    void Impl::findSamplePeaks(T* src, size_t frames, size_t chan)
     {
-        const size_t channels = sample_peak.size();
-        for (size_t c = 0; c < channels; ++c) {
-            if constexpr (std::is_pointer_v<T>){
-                using U = std::remove_pointer_t<T>;
-                auto minmax = std::minmax_element(src[c], src[c] + frames);
-                last_sample_peak[c] = static_cast<double>(std::max<U>(-*minmax.first, *minmax.second)) / getScalingFactor<U>();
-            } else {
-                double max = 0.0;
-                for (size_t i = 0; i < frames; ++i) {
-                    const double cur = std::abs(static_cast<double>(src[i * channels + c]));
-                    if (cur > max) {
-                        max = cur;
-                    }
+        if constexpr (std::is_pointer_v<T>){
+            using U = std::remove_pointer_t<T>;
+            auto minmax = std::minmax_element(src[chan], src[chan] + frames);
+            last_sample_peak[chan] = static_cast<double>(std::max<U>(-*minmax.first, *minmax.second)) / getScalingFactor<U>();
+        } else {
+            const size_t channels = sample_peak.size();
+            double max = 0.0;
+            for (size_t i = 0; i < frames; ++i) {
+                const double cur = std::abs(static_cast<double>(src[i * channels + chan]));
+                if (cur > max) {
+                    max = cur;
                 }
-                last_sample_peak[c] = max / getScalingFactor<T>();
             }
-            if (last_sample_peak[c] > sample_peak[c]) {
-                sample_peak[c] = last_sample_peak[c];
-            }
+            last_sample_peak[chan] = max / getScalingFactor<T>();
+        }
+        if (last_sample_peak[chan] > sample_peak[chan]) {
+            sample_peak[chan] = last_sample_peak[chan];
         }
     }
 
-    double Ebur128Impl::energyInInterval(size_t frames_per_block)
+    double Impl::energyInInterval(size_t interval_frames) const
     {
         double sum = 0.0;
         for (size_t c = 0; c < channel_map.size(); ++c) {
@@ -274,24 +315,70 @@ namespace detail {
                 continue;
             }
             double channel_sum = 0.0;
-            if (audio_data_index < frames_per_block) {
+            if (audio_data_index < interval_frames) {
                 // Read over the seam in the circular buffer
                 channel_sum += std::reduce(audio_data[c].cbegin(), audio_data[c].cbegin() + audio_data_index, 0.0) +
-                               std::reduce(audio_data[c].crbegin(), audio_data[c].crbegin() + frames_per_block - audio_data_index, 0.0);
+                               std::reduce(audio_data[c].crbegin(), audio_data[c].crbegin() + interval_frames - audio_data_index, 0.0);
             }
             else {
-                channel_sum += std::reduce(audio_data[c].cbegin() + audio_data_index - frames_per_block, audio_data[c].cbegin() + audio_data_index, 0.0);
+                channel_sum += std::reduce(audio_data[c].cbegin() + audio_data_index - interval_frames, audio_data[c].cbegin() + audio_data_index, 0.0);
             }
             channel_sum *= channel_weight[c];
 
             sum += channel_sum;
         }
 
-        return sum / static_cast<double>(frames_per_block);
+        return sum / static_cast<double>(interval_frames);
+    }
+
+    void Impl::addFramesLoudness(DataType src, size_t frames)
+    {
+        size_t src_index = 0;
+        while (frames > 0) {
+            if (frames >= needed_frames) {
+                std::visit([this, src_index](auto&& src){
+                    filter(src, src_index, needed_frames);
+                }, src);
+                src_index += needed_frames;
+                frames -= needed_frames;
+                /* calculate the new gating block */
+                if ((mode & MODE_I) == MODE_I) {
+                    calcSubBlocks();
+                    addIntgrationBlock();
+                }
+                if ((mode & MODE_LRA) == MODE_LRA) {
+                    calcSubBlocks();
+                    short_term_frame_counter += needed_frames;
+                    if (short_term_frame_counter == samples_in_100ms * st_subblocks) {
+                        addShorttermBlock();
+                        short_term_frame_counter = samples_in_100ms * 20;
+                    }
+                }
+                /* 100ms are needed for all blocks besides the first one */
+                needed_frames = samples_in_100ms;
+                /* reset audio_data_index when buffer full */
+                if (audio_data_index == audio_data_frames) {
+                    audio_data_index = 0;
+                }
+                if (calculated_audio_index == audio_data_frames) {
+                    calculated_audio_index = 0;
+                }
+            }
+            else {
+                std::visit([this, src_index, frames](auto&& src){
+                    filter(src, src_index, frames);
+                }, src);
+                if ((mode & MODE_LRA) == MODE_LRA) {
+                    short_term_frame_counter += frames;
+                }
+                needed_frames -= static_cast<unsigned long>(frames);
+                frames = 0;
+            }
+        }
     }
 
 
-    void Ebur128Impl::calcSubBlocks()
+    void Impl::calcSubBlocks()
     {
         for (;calculated_audio_index + samples_in_100ms <= audio_data_index; calculated_audio_index += samples_in_100ms){
             for (size_t c = 0; c < channel_map.size(); ++c) {
@@ -308,7 +395,7 @@ namespace detail {
         }
     }
 
-    void Ebur128Impl::addIntgrationBlock()
+    void Impl::addIntgrationBlock()
     {
         double sum = 0.0;
         for (size_t c = 0; c < channel_weight.size(); ++c) {
@@ -316,13 +403,13 @@ namespace detail {
                 sum += channel_weight[c] * std::reduce(calculated_subblocks[c].crbegin(), calculated_subblocks[c].crbegin() + m_subblocks, 0.0);
             }
         }
-        sum /= m_subblocks*samples_in_100ms;
+        sum /= static_cast<double>(m_subblocks*samples_in_100ms);
         if (sum >= absolute_gate) [[likely]] {
             bs1770_calculator->addBlock(sum);
         }
     }
 
-    void Ebur128Impl::addShorttermBlock()
+    void Impl::addShorttermBlock()
     {
         double sum = 0.0;
         for (size_t c = 0; c < channel_weight.size(); ++c) {
@@ -330,27 +417,27 @@ namespace detail {
                 sum += channel_weight[c] * std::reduce(calculated_subblocks[c].crbegin(), calculated_subblocks[c].crbegin() + st_subblocks, 0.0);
             }
         }
-        sum /= st_subblocks*samples_in_100ms;
+        sum /= static_cast<double>(st_subblocks*samples_in_100ms);
         if (sum >= absolute_gate) [[likely]] {
             bs1770_calculator->addShortTermBlock(sum);
         }
     }
 
-    void Ebur128::setChannel(unsigned int channel_number, Channel value)
+    void Meter::setChannel(unsigned int channel_index, Channel value)
     {
-        if (channel_number > MAX_CHANNELS) {
+        if (channel_index > channels) {
             throw std::invalid_argument("Requested channels larger than maximum");
         }
-        if (value == Channel::DUAL_MONO && (channels != 1 || channel_number != 0)) {
+        if (value == Channel::DUAL_MONO && (channels != 1 || channel_index != 0)) {
             throw std::invalid_argument("Channel::DUAL_MONO only works with mono files!");
         }
-        if (pimpl->channel_map[channel_number] != value){
-            pimpl->channel_map[channel_number] = value;
+        if (pimpl->channel_map[channel_index] != value){
+            pimpl->channel_map[channel_index] = value;
             pimpl->recalcChannelWeights();
         }
     }
 
-    bool Ebur128::changeParameters(unsigned int channels, unsigned long samplerate)
+    bool Meter::changeParameters(unsigned int channels, unsigned long samplerate)
     {
         if (channels == 0 || channels > MAX_CHANNELS) {
             throw std::invalid_argument("Requested channels larger than maximum");
@@ -381,15 +468,15 @@ namespace detail {
          * have changed. Re-init filter. */
         pimpl->k_filter = KFilter(static_cast<double>(samplerate), channels);
 
-        pimpl->audio_data_frames = samplerate * pimpl->window / 1000;
-        if (pimpl->audio_data_frames % pimpl->samples_in_100ms) {
+        pimpl->audio_data_frames = samplerate * pimpl->window_ms / 1000;
+        if (pimpl->audio_data_frames % pimpl->samples_in_100ms != 0) {
             /* round up to multiple of samples_in_100ms */
             pimpl->audio_data_frames =
                 (pimpl->audio_data_frames + pimpl->samples_in_100ms) - (pimpl->audio_data_frames % pimpl->samples_in_100ms);
         }
         pimpl->audio_data.assign(channels, std::vector<double>(pimpl->audio_data_frames));
 
-        if ((mode & EBUR128_MODE_TRUE_PEAK) == EBUR128_MODE_TRUE_PEAK) {
+        if ((mode & MODE_TRUE_PEAK) == MODE_TRUE_PEAK) {
             if (samplerate < 96000) {
                 pimpl->resampler = std::make_unique<Interpolator>(49, 4, channels);
             }
@@ -410,36 +497,32 @@ namespace detail {
         return true;
     }
 
-    bool Ebur128::setMaxWindow(unsigned long window)
+    bool Meter::setMaxWindow(unsigned long window_ms)
     {
-        if ((mode & EBUR128_MODE_S) == EBUR128_MODE_S && window < ms_shortterm_block) {
-            window = ms_shortterm_block;
+        if ((mode & MODE_S) == MODE_S && window_ms < shortterm_block_ms) {
+            window_ms = shortterm_block_ms;
         }
-        else if ((mode & EBUR128_MODE_M) == EBUR128_MODE_M && window < ms_momentary_block) {
-            window = ms_momentary_block;
+        else if ((mode & MODE_M) == MODE_M && window_ms < momentary_block_ms) {
+            window_ms = momentary_block_ms;
         }
 
-        if (window == pimpl->window) {
+        if (window_ms == pimpl->window_ms) {
             return false;
         }
 
         size_t new_audio_data_frames;
-        if (not safe_size_mul(samplerate, window, &new_audio_data_frames) ||
+        if (not safeSizeMul(samplerate, window_ms, &new_audio_data_frames) ||
             new_audio_data_frames > std::numeric_limits<size_t>::max() - pimpl->samples_in_100ms) {
             throw std::invalid_argument("Requested window too large");
         }
-        if (new_audio_data_frames % pimpl->samples_in_100ms) {
+        if (new_audio_data_frames % pimpl->samples_in_100ms != 0) {
             /* round up to multiple of samples_in_100ms */
             new_audio_data_frames =
                 (new_audio_data_frames + pimpl->samples_in_100ms) - (new_audio_data_frames % pimpl->samples_in_100ms);
         }
 
-        size_t new_audio_data_size;
-        if (not safe_size_mul(new_audio_data_frames, channels * sizeof(double), &new_audio_data_size)) {
-            throw std::invalid_argument("Requested window too large");
-        }
-
-        pimpl->window = window;
+        pimpl->window_ms = window_ms;
+        pimpl->audio_data_frames = new_audio_data_frames;
         pimpl->audio_data.assign(channels, std::vector<double>(pimpl->audio_data_frames));
 
         /* the first block needs 400ms of audio data */
@@ -452,120 +535,54 @@ namespace detail {
         return true;
     }
 
-    bool Ebur128::setMaxHistory(unsigned long history)
+    bool Meter::setMaxHistory(unsigned long history_ms)
     {
-        if ((mode & EBUR128_MODE_LRA) == EBUR128_MODE_LRA && history < ms_shortterm_block) {
-            history = ms_shortterm_block;
+        if ((mode & MODE_LRA) == MODE_LRA && history_ms < shortterm_block_ms) {
+            history_ms = shortterm_block_ms;
         }
-        else if ((mode & EBUR128_MODE_M) == EBUR128_MODE_M && history < ms_momentary_block) {
-            history = ms_momentary_block;
+        else if ((mode & MODE_M) == MODE_M && history_ms < momentary_block_ms) {
+            history_ms = momentary_block_ms;
         }
 
-        return pimpl->bs1770_calculator->setMaxHistory(history);
+        return pimpl->bs1770_calculator->setMaxHistory(history_ms);
     }
 
-    template <typename T>
-    void Ebur128::addFrames(const T* src, size_t frames)
+
+    void Meter::addFrames(DataType src, size_t frames)
     {
+        pimpl->input_node.try_put(DataMessage{.data=src, .frames=frames});
+        pimpl->graph.wait_for_all();
+    }
+
+    void Meter::addFramesSeq(DataType src, size_t frames)
+    {
+        ScopedFTZ guard;
         // Find new sample peak
-        if ((mode & EBUR128_MODE_SAMPLE_PEAK) == EBUR128_MODE_SAMPLE_PEAK) {
-            pimpl->findSamplePeaks(src, frames);
+        if ((mode & MODE_SAMPLE_PEAK) == MODE_SAMPLE_PEAK) {
+            for (size_t c = 0; c < channels; ++c){
+                std::visit([this, frames, c](auto&& src){
+                    pimpl->findSamplePeaks(src, frames, c);
+                }, src);
+            }
         }
         // Find new true peak
         if (pimpl->resampler) {
-            pimpl->resampler->clearPeaks();
-            ScopedFTZ guard;
-            pimpl->resampler->process(src, frames);
-            for (unsigned int c = 0; c < channels; c++) {
+            for (size_t c = 0; c < channels; ++c){
+                std::visit([this, frames, c](auto&& src){
+                    pimpl->resampler->process(src, frames, c);
+                }, src);
                 if (pimpl->resampler->peak(c) > pimpl->true_peak[c]) {
                     pimpl->true_peak[c] = pimpl->resampler->peak(c);
                 }
             }
         }
 
-        if ((mode & EBUR128_MODE_M) == EBUR128_MODE_M){
-            addFramesLoudness(src, frames);
+        if ((mode & MODE_M) == MODE_M){
+            pimpl->addFramesLoudness(src, frames);
         }
     }
 
-    template <typename T>
-    void Ebur128::addFrames(const T** src, size_t frames)
-    {
-        // Find new sample peak
-        if ((mode & EBUR128_MODE_SAMPLE_PEAK) == EBUR128_MODE_SAMPLE_PEAK) {
-            pimpl->findSamplePeaks(src, frames);
-        }
-        // Find new true peak
-        if (pimpl->resampler) {
-            pimpl->resampler->clearPeaks();
-            ScopedFTZ guard;
-            pimpl->resampler->process(src, frames);
-            for (unsigned int c = 0; c < channels; c++) {
-                if (pimpl->resampler->peak(c) > pimpl->true_peak[c]) {
-                    pimpl->true_peak[c] = pimpl->resampler->peak(c);
-                }
-            }
-        }
-
-        if ((mode & EBUR128_MODE_M) == EBUR128_MODE_M){
-            addFramesLoudness(src, frames);
-        }
-    }
-
-    template void Ebur128::addFrames<>(const short*  src, size_t frames);
-    template void Ebur128::addFrames<>(const int*    src, size_t frames);
-    template void Ebur128::addFrames<>(const float*  src, size_t frames);
-    template void Ebur128::addFrames<>(const double* src, size_t frames);
-
-    template void Ebur128::addFrames<>(const short**  src, size_t frames);
-    template void Ebur128::addFrames<>(const int**    src, size_t frames);
-    template void Ebur128::addFrames<>(const float**  src, size_t frames);
-    template void Ebur128::addFrames<>(const double** src, size_t frames);
-
-    template<ConstData T>
-    void Ebur128::addFramesLoudness(T* src, size_t frames)
-    {
-        size_t src_index = 0;
-        while (frames > 0) {
-            if (frames >= pimpl->needed_frames) {
-                pimpl->filter(src, src_index, pimpl->needed_frames);
-                src_index += pimpl->needed_frames;
-                frames -= pimpl->needed_frames;
-                /* calculate the new gating block */
-                if ((mode & EBUR128_MODE_I) == EBUR128_MODE_I) {
-                    pimpl->calcSubBlocks();
-                    pimpl->addIntgrationBlock();
-                }
-                if ((mode & EBUR128_MODE_LRA) == EBUR128_MODE_LRA) {
-                    pimpl->calcSubBlocks();
-                    pimpl->short_term_frame_counter += pimpl->needed_frames;
-                    if (pimpl->short_term_frame_counter == pimpl->samples_in_100ms * st_subblocks) {
-                        pimpl->addShorttermBlock();
-                        pimpl->short_term_frame_counter = pimpl->samples_in_100ms * 20;
-                    }
-                }
-                /* 100ms are needed for all blocks besides the first one */
-                pimpl->needed_frames = pimpl->samples_in_100ms;
-                /* reset audio_data_index when buffer full */
-                if (pimpl->audio_data_index == pimpl->audio_data_frames) {
-                    pimpl->audio_data_index = 0;
-                }
-                if (pimpl->calculated_audio_index == pimpl->audio_data_frames) {
-                    pimpl->calculated_audio_index = 0;
-                }
-            }
-            else {
-                pimpl->filter(src, src_index, frames);
-                if ((mode & EBUR128_MODE_LRA) == EBUR128_MODE_LRA) {
-                    pimpl->short_term_frame_counter += frames;
-                }
-                pimpl->needed_frames -= static_cast<unsigned long>(frames);
-                frames = 0;
-            }
-        }
-    }
-
-    double Ebur128::relativeThreshold()
+    double Meter::relativeThreshold() const
     {
         auto [above_thresh_counter, relative_threshold] = pimpl->bs1770_calculator->relativeThreshold();
 
@@ -579,7 +596,7 @@ namespace detail {
         return energyToLoudness(relative_threshold);
     }
 
-    double Ebur128::loudnessGlobal() {
+    double Meter::loudnessGlobal() const {
         auto [above_thresh_counter, relative_threshold] = pimpl->bs1770_calculator->relativeThreshold();
         if (above_thresh_counter == 0) {
             return -HUGE_VAL;
@@ -593,41 +610,40 @@ namespace detail {
         return above_rel_counter == 0 ? -HUGE_VAL : energyToLoudness(gated_loudness / static_cast<double>(above_rel_counter));
     }
 
-    double Ebur128::loudnessMomentary()
+    double Meter::loudnessMomentary() const
     {
         const double energy = pimpl->energyInInterval(pimpl->samples_in_100ms * m_subblocks);
         return energy <= 0.0 ? -HUGE_VAL : energyToLoudness(energy);
     }
 
-    double Ebur128::loudnessShortterm()
+    double Meter::loudnessShortterm() const
     {
         const double energy = pimpl->energyInInterval(pimpl->samples_in_100ms * st_subblocks);
         return energy <= 0.0 ? -HUGE_VAL :  energyToLoudness(energy);
     }
 
-    double Ebur128::loudnessWindow(unsigned long window)
+    double Meter::loudnessWindow(unsigned long window_ms) const
     {
-        const size_t interval_frames = samplerate * window / 1000;;
+        const size_t interval_frames = (samplerate * window_ms) / 1000;
 
-        if (window > pimpl->window || interval_frames > pimpl->audio_data_frames) [[unlikely]]{
+        if (window_ms > pimpl->window_ms || interval_frames > pimpl->audio_data_frames) {
             throw std::invalid_argument("Given window too large for current mode");
         }
 
         const double energy = pimpl->energyInInterval(interval_frames);
-
         return energy <= 0.0 ? -HUGE_VAL : energyToLoudness(energy);
     }
 
-    double Ebur128::loudnessRange() {
+    double Meter::loudnessRange() const {
         // TODO: Find better solution here, avoiding dynamic cast
-        if ((mode & EBUR128_MODE_HISTOGRAM) == EBUR128_MODE_HISTOGRAM) {
+        if ((mode & MODE_HISTOGRAM) == MODE_HISTOGRAM) {
             return HistogramCalculator::loudnessRangeMultiple({dynamic_cast<HistogramCalculator*>(pimpl->bs1770_calculator.get())});
         } else {
             return  BlockListCalculator::loudnessRangeMultiple({dynamic_cast<BlockListCalculator*>(pimpl->bs1770_calculator.get())});
         }
     }
 
-    double Ebur128::loudnessGlobalMedian()
+    double Meter::loudnessGlobalMedian() const
     {
         auto [above_thresh_counter, relative_threshold] = pimpl->bs1770_calculator->relativeThreshold();
         if (above_thresh_counter == 0) {
@@ -640,7 +656,7 @@ namespace detail {
         return energyToLoudness(pimpl->bs1770_calculator->gatedMedianLoudness(relative_threshold));
     }
 
-    double Ebur128::samplePeak(unsigned int channel_index) const
+    double Meter::samplePeak(unsigned int channel_index) const
     {
         if (channel_index >= channels) {
             throw std::invalid_argument("Invalid channel index");
@@ -649,56 +665,58 @@ namespace detail {
         return pimpl->sample_peak[channel_index];
     }
 
-    double Ebur128::lastSamplePeak(unsigned int channel_number) const
+    double Meter::lastSamplePeak(unsigned int channel_index) const
     {
-        if (channel_number >= channels) {
+        if (channel_index >= channels) {
             throw std::invalid_argument("Invalid channel index");
         }
 
-        return pimpl->last_sample_peak[channel_number];
+        return pimpl->last_sample_peak[channel_index];
     }
 
-    double Ebur128::truePeak(unsigned int channel_number) const
+    double Meter::truePeak(unsigned int channel_index) const
     {
-        if (channel_number >= channels) {
+        if (channel_index >= channels) {
             throw std::invalid_argument("Invalid channel index");
         }
 
-        return std::max(pimpl->true_peak[channel_number], pimpl->sample_peak[channel_number]);
+        return std::max(pimpl->true_peak[channel_index], pimpl->sample_peak[channel_index]);
     }
 
-    double Ebur128::lastTruePeak(unsigned int channel_number) const
+    double Meter::lastTruePeak(unsigned int channel_index) const
     {
-        if (channel_number >= channels) {
+        if (channel_index >= channels) {
             throw std::invalid_argument("Invalid channel index");
         }
         if (pimpl->resampler){
-            return std::max(static_cast<double>(pimpl->resampler->peak(channel_number)),
-                            pimpl->last_sample_peak[channel_number]);
+            return std::max(static_cast<double>(pimpl->resampler->peak(channel_index)),
+                            pimpl->last_sample_peak[channel_index]);
         }
-        return pimpl->last_sample_peak[channel_number];
+        return pimpl->last_sample_peak[channel_index];
 
     }
 
-    double Ebur128::loudnessRangeMultipleHist(const std::vector<const Ebur128*>& meters)
+    double Meter::loudnessRangeMultipleHist(const std::vector<const Meter*>& meters)
     {
         std::vector<const HistogramCalculator*> hists;
+        hists.reserve(meters.size());
         for (const auto& meter : meters){
             hists.push_back(dynamic_cast<const HistogramCalculator*>(meter->pimpl->bs1770_calculator.get()));
         }
         return HistogramCalculator::loudnessRangeMultiple(hists);
     }
 
-    double Ebur128::loudnessRangeMultipleBlocks(const std::vector<const Ebur128*>& meters)
+    double Meter::loudnessRangeMultipleBlocks(const std::vector<const Meter*>& meters)
     {
         std::vector<const BlockListCalculator*> lists;
+        lists.reserve(meters.size());
         for (const auto& meter : meters){
             lists.push_back(dynamic_cast<BlockListCalculator*>(meter->pimpl->bs1770_calculator.get()));
         }
         return BlockListCalculator::loudnessRangeMultiple(lists);
     }
 
-    double Ebur128::loudnessGlobalMultiple(const std::vector<const Ebur128*>& meters)
+    double Meter::loudnessGlobalMultiple(const std::vector<const Meter*>& meters)
     {
         double gated_loudness = 0.0;
         double relative_threshold = 0.0;
@@ -728,4 +746,4 @@ namespace detail {
         gated_loudness /= static_cast<double>(above_thresh_counter);
         return energyToLoudness(gated_loudness);
     }
-} // namespace detail
+} // namespace loudness::detail

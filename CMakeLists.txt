@@ -7,11 +7,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(BUILD_SHARED_LIBS
     "Build shared libraries instead of static ones" ON)
 
-if(ENABLE_FUZZER)
-  enable_language(CXX)
-  set(SANITIZER_FLAGS "-fsanitize=address,undefined,unsigned-integer-overflow")
-  set(FUZZER_FLAGS "${SANITIZER_FLAGS},fuzzer")
-endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_BINARY_DIR})

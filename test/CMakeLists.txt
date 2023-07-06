@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 2.8.12)
 
 set(ENABLE_TESTS OFF CACHE BOOL "Build test binaries, needs libsndfile")
-set(ENABLE_FUZZER OFF CACHE BOOL "Build fuzzer binary")
 
 
 Include(FetchContent)
@@ -17,21 +16,12 @@ FetchContent_MakeAvailable(Catch2)
 add_executable(loudness_tests EXCLUDE_FROM_ALL)
 target_sources(loudness_tests
     PRIVATE
+#    test-compare.cpp
     test-k-filter.cpp
     test-ebur128.cpp
     test-bs1770-calculator.cpp
     test-utilities.hpp
 )
-target_link_libraries(loudness_tests PRIVATE Catch2::Catch2WithMain lufs_meter)
+target_link_libraries(loudness_tests PRIVATE Catch2::Catch2WithMain loudness)
 target_link_libraries(loudness_tests PRIVATE sndfile)
 target_compile_definitions(loudness_tests PRIVATE TEST_DIR="${CMAKE_SOURCE_DIR}/test/")
-
-
-if(ENABLE_FUZZER)
-  include_directories(${EBUR128_INCLUDE_DIR})
-
-  add_executable(fuzzer fuzzer)
-  target_link_libraries(fuzzer ebur128)
-  target_compile_options(fuzzer PUBLIC "${FUZZER_FLAGS}")
-  target_link_libraries(fuzzer "${FUZZER_FLAGS}")
-endif()
