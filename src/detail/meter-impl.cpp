@@ -18,9 +18,7 @@
 #include "k-filter.hpp"
 #include "utils.hpp"
 
-#include "oneapi/tbb/flow_graph.h"
-
-namespace fg = oneapi::tbb::flow;
+#include "BS_thread_pool.hpp"
 
 namespace loudness::detail {
     struct DataMessage {
@@ -37,7 +35,7 @@ namespace loudness::detail {
         void initChannelMap(size_t num_channels);
         void recalcChannelWeights();
         void calcSubBlocks();
-        void addIntgrationBlock();
+        void addIntegrationBlock();
         void addShorttermBlock();
         [[nodiscard]] double energyInInterval(size_t interval_frames) const;
 
@@ -86,11 +84,8 @@ namespace loudness::detail {
         std::unique_ptr<Interpolator> resampler;
         std::unique_ptr<BS1770Calculator> bs1770_calculator;
 
+        BS::thread_pool pool;
         unsigned int mode;
-        oneapi::tbb::task_group_context ctx;
-        fg::graph graph;
-        fg::broadcast_node<DataMessage> input_node;
-        std::list<fg::function_node<DataMessage>> nodes;
     };
 
     void Impl::initChannelMap(size_t num_channels)
@@ -180,9 +175,7 @@ namespace loudness::detail {
           sample_peak(channels),
           last_sample_peak(channels),
           true_peak(channels),
-          mode(mode),
-          graph(ctx),
-          input_node(graph)
+          mode(mode)
     {
         initChannelMap(channels);
 
@@ -221,39 +214,6 @@ namespace loudness::detail {
                 resampler = nullptr;
             }
         }
-
-        const ScopedFTZ guard;
-        ctx.capture_fp_settings();
-        if ((mode & MODE_TRUE_PEAK) == MODE_TRUE_PEAK) {
-            for (size_t c = 0; c < channels; ++c){
-                nodes.emplace_back(graph, 1, [this, c] (const DataMessage& msg) {
-                    std::visit([this, c, frames = msg.frames](auto&& src){
-                        resampler->process(src, frames, c);
-                    }, msg.data);
-                    if (resampler->peak(c) > true_peak[c]) {
-                        true_peak[c] = resampler->peak(c);
-                    }
-                }, fg::queueing(), 2);
-                fg::make_edge(input_node, nodes.back());
-            }
-        }
-        // Sample peak so lightweight it is never worth parallelizing channels
-        if ((mode & MODE_SAMPLE_PEAK) == MODE_SAMPLE_PEAK) {
-                nodes.emplace_back(graph, 1, [this, channels] (const DataMessage& msg) {
-                    std::visit([this, channels, frames = msg.frames](auto&& src){
-                        for (size_t c = 0; c < channels; ++c){
-                            findSamplePeaks(src, frames, c);
-                        }
-                    }, msg.data);
-                });
-                fg::make_edge(input_node, nodes.back());
-        }
-        if ((mode & MODE_M) == MODE_M){
-            nodes.emplace_back(graph, 1, [this] (const DataMessage& msg){
-                addFramesLoudness(msg.data, msg.frames);
-            }, fg::queueing(), 1);
-            fg::make_edge(input_node, nodes.back());
-        }
     }
 
     template <ConstData T>
@@ -283,6 +243,7 @@ namespace loudness::detail {
         }
         audio_data_index += frames;
     }
+
 
     template<ConstData T>
     void Impl::findSamplePeaks(T* src, size_t frames, size_t chan)
@@ -333,6 +294,7 @@ namespace loudness::detail {
 
     void Impl::addFramesLoudness(DataType src, size_t frames)
     {
+        const ScopedFTZ guard;
         size_t src_index = 0;
         while (frames > 0) {
             if (frames >= needed_frames) {
@@ -344,7 +306,7 @@ namespace loudness::detail {
                 /* calculate the new gating block */
                 if ((mode & MODE_I) == MODE_I) {
                     calcSubBlocks();
-                    addIntgrationBlock();
+                    addIntegrationBlock();
                 }
                 if ((mode & MODE_LRA) == MODE_LRA) {
                     calcSubBlocks();
@@ -395,7 +357,7 @@ namespace loudness::detail {
         }
     }
 
-    void Impl::addIntgrationBlock()
+    void Impl::addIntegrationBlock()
     {
         double sum = 0.0;
         for (size_t c = 0; c < channel_weight.size(); ++c) {
@@ -550,9 +512,38 @@ namespace loudness::detail {
 
     void Meter::addFrames(DataType src, size_t frames)
     {
-        pimpl->input_node.try_put(DataMessage{.data=src, .frames=frames});
-        pimpl->graph.wait_for_all();
+//        addFramesSeq(src, frames);
+
+        if ((mode & MODE_TRUE_PEAK) == MODE_TRUE_PEAK) {
+            for (size_t c = 0; c < channels; ++c){
+                pimpl->pool.push_task([this, c, src, frames] {
+                    const ScopedFTZ guard;
+                    std::visit([this, c, frames](auto&& src){
+                        pimpl->resampler->process(src, frames, c);
+                    }, src);
+                    if (pimpl->resampler->peak(c) > pimpl->true_peak[c]) {
+                        pimpl->true_peak[c] = pimpl->resampler->peak(c);
+                    }
+                });
+            }
+        }
+        if ((mode & MODE_M) == MODE_M){
+            pimpl->pool.push_task(&Impl::addFramesLoudness, pimpl.get(), src, frames);
+        }
+        // Sample peak so lightweight it is never worth parallelizing channels
+        if ((mode & MODE_SAMPLE_PEAK) == MODE_SAMPLE_PEAK) {
+            pimpl->pool.push_task([this, src, frames]{
+                std::visit([this, frames](auto&& src){
+                    for (size_t c = 0; c < channels; ++c){
+                        pimpl->findSamplePeaks(src, frames, c);
+                    }
+                }, src);
+            });
+        }
+
+        pimpl->pool.wait_for_tasks();
     }
+
 
     void Meter::addFramesSeq(DataType src, size_t frames)
     {

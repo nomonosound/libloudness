@@ -1,3 +1,6 @@
 [submodule "vendor/gcem"]
 	path = vendor/gcem
 	url = https://github.com/kthohr/gcem
+[submodule "vendor/thread-pool"]
+	path = vendor/thread-pool
+	url = git@github.com:bshoshany/thread-pool.git

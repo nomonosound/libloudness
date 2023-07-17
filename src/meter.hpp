@@ -128,7 +128,7 @@ namespace loudness {
                     meter.addFrames(src.data(), frames);
                 } else {
                     std::vector<U> data;
-                    for (auto ptr : src){
+                    for (auto* ptr : src){
                         data.push_back(ptr);
                     }
                     meter.addFrames(data.data(), frames);
@@ -136,7 +136,7 @@ namespace loudness {
             } else if constexpr (HasDataPointer<T>){
                 using U = std::add_pointer_t<std::add_const_t<std::remove_pointer_t<decltype(src.begin()->data())>>>;
                 std::vector<U> data;
-                for (auto container : src){
+                for (auto& container : src){
                     data.push_back(container.data());
                 }
                 meter.addFrames(data.data(), frames);

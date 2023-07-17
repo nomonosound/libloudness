@@ -10,8 +10,8 @@ if(MSVC)
 endif()
 
 
-set(EBUR128_VERSION_MAJOR 1)
-set(EBUR128_VERSION 1.2.6)
+set(LOUDNESS_VERSION_MAJOR 0)
+set(LOUDNESS_VERSION 0.1.0)
 
 add_library(loudness
     meter.hpp
@@ -28,12 +28,12 @@ add_library(loudness
     constants.hpp
 )
 
-find_package(TBB REQUIRED)
-target_link_libraries(loudness TBB::tbb gcem)
+target_include_directories(loudness PUBLIC ${CMAKE_SOURCE_DIR}/vendor/thread-pool/include)
+target_link_libraries(loudness gcem)
 
 set_target_properties(loudness PROPERTIES
-  SOVERSION ${EBUR128_VERSION_MAJOR}
-  VERSION ${EBUR128_VERSION}
+  SOVERSION ${LOUDNESS_VERSION_MAJOR}
+  VERSION ${LOUDNESS_VERSION}
 )
 
 if(BUILD_SHARED_LIBS)
@@ -43,7 +43,7 @@ else()
   endif()
 endif()
 
-install(FILES meter.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(FILES meter.hpp detail/meter-impl.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(TARGETS loudness
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
