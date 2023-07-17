@@ -13,16 +13,16 @@ namespace loudness::detail {
 
     class Meter {
     public:
-        static constexpr unsigned int MAX_CHANNELS = 64;
-        static constexpr unsigned long MIN_SAMPLERATE = 16;
-        static constexpr unsigned long MAX_SAMPLERATE = 2822400;
+        static constexpr unsigned int max_channels = 64;
+        static constexpr unsigned long min_samplerate = 16;
+        static constexpr unsigned long max_samplerate = 2822400;
 
-        Meter(unsigned int channels, unsigned long samplerate, unsigned int mode);
-        ~Meter();
-        Meter(const Meter&) = delete;
-        Meter& operator=(const Meter&) = delete;
+        Meter(unsigned int channels, unsigned long samplerate, Mode mode);
+        ~Meter() noexcept;
         Meter(Meter&& other) noexcept;
         Meter& operator=(Meter&& other) = delete;
+        Meter(const Meter&) = delete;
+        Meter& operator=(const Meter&) = delete;
 
         void setChannel(unsigned int channel_index, Channel value);
         bool changeParameters(unsigned int channels, unsigned long samplerate);
@@ -56,7 +56,7 @@ namespace loudness::detail {
 
     private:
         std::unique_ptr<struct Impl> pimpl; /**< Internal state. */
-        const unsigned int mode;    /**< The current mode. */
+        const Mode mode;            /**< The current mode. */
         unsigned int channels;      /**< The number of channels. */
         unsigned long samplerate;   /**< The sample rate. */
     };

@@ -13,9 +13,7 @@ namespace loudness {
         : factor_(factor),
           channels_(channels),
           delay_((taps - 1 + factor) / factor),
-          z_(std::vector<std::vector<float>>(channels, std::vector<float>(delay_))),
-          zi_(channels),
-          peaks_(channels)
+          chan_data_(channels, {.buffer = std::vector<float>(delay_), .index = 0, .peak = 0.0})
     {
         assert(taps % 2 == 1); // Assert odd number of taps
 
@@ -52,7 +50,7 @@ namespace loudness {
     }
 
     double Interpolator::peak(unsigned int channel) const {
-        assert(channel < channels_);
-        return peaks_[channel];
+        assert(channel < chan_data_.size());
+        return chan_data_[channel].peak;
     }
 } // namespace loudness

@@ -5,7 +5,7 @@
 
 /** @file meter.hpp
  *  @brief libloudness - a library for loudness measurements according to
- *         ITU-BS.1770
+ *         ITU-BS.1770 and EBU-R128
  */
 
 #include "defines.hpp"
@@ -20,10 +20,9 @@ namespace loudness {
        *t.data();
     };
 
-    template <unsigned Mode> requires (Mode != 0U)
+    template <Mode mode>
     class Meter {
     public:
-        static constexpr unsigned mode = Mode;
         /** @brief Initialize library state.
          *
          *  @tparam mode       A mode bitmap from the Mode enum, decides capabilities of the meter
@@ -68,8 +67,8 @@ namespace loudness {
         /** @brief Set the maximum window duration.
          *
          *  Set the maximum duration that will be used for loudnessWindow().
-         *  Minimum is enforced to 400 ms for MODE_M and 3000 ms for
-         *  MODE_S.
+         *  Minimum is enforced to 400 ms for EBU_M and 3000 ms for
+         *  EBU_S.
          *
          *  @warning This destroys the current content of the audio buffer.
          *
@@ -77,7 +76,7 @@ namespace loudness {
          *  @return bool if window duration was changed or not
          *  @throws std::invalid_argument if window is too large
          */
-        bool setMaxWindow(unsigned long window) requires ((mode & MODE_M) == MODE_M){
+        bool setMaxWindow(unsigned long window) requires ((mode & Mode::EBU_M) == Mode::EBU_M){
             return meter.setMaxWindow(window);
         }
 
@@ -87,15 +86,15 @@ namespace loudness {
          *  More history provides more accurate results, but requires more resources.
          *
          *  Applies to loudnessRange() and loudnessGlobal() when
-         *  MODE_HISTOGRAM is not set.
+         *  Mode::Histogram is not set.
          *
          *  Default is ULONG_MAX (at least ~50 days).
-         *  Minimum is 3000ms for MODE_LRA and 400ms for MODE_M.
+         *  Minimum is 3000ms for EBU_LRA and 400ms for EBU_M.
          *
          *  @param  history duration of history in ms.
          *  @return bool if history duration was changed or not
          */
-        bool setMaxHistory(unsigned long history_ms) requires ((mode & MODE_HISTOGRAM) != MODE_HISTOGRAM) {
+        bool setMaxHistory(unsigned long history_ms) noexcept requires ((mode & Mode::Histogram) != Mode::Histogram) {
             return meter.setMaxHistory(history_ms);
         }
 
@@ -112,6 +111,7 @@ namespace loudness {
         void addFramesSeq(DataType src, size_t frames){
             meter.addFramesSeq(src, frames);
         }
+
 
         /** @brief Add frames to be processed.
          *
@@ -151,7 +151,7 @@ namespace loudness {
          *  @return integrated loudness in LUFS. -HUGE_VAL if result is negative
          *             infinity.
          */
-        [[nodiscard]] double loudnessGlobal() const requires ((mode & MODE_I) == MODE_I){
+        [[nodiscard]] double loudnessGlobal() const requires ((mode & Mode::EBU_I) == Mode::EBU_I){
             return meter.loudnessGlobal();
         }
 
@@ -160,7 +160,7 @@ namespace loudness {
          *  @return integrated loudness in LUFS. -HUGE_VAL if result is negative
          *             infinity.
          */
-        [[nodiscard]] double loudnessGlobalMedian() const requires ((mode & MODE_I) == MODE_I){
+        [[nodiscard]] double loudnessGlobalMedian() const requires ((mode & Mode::EBU_I) == Mode::EBU_I){
             return meter.loudnessGlobalMedian();
         }
 
@@ -169,7 +169,7 @@ namespace loudness {
          *  @return momentary loudness in LUFS. -HUGE_VAL if result is negative
          *             infinity.
          */
-        [[nodiscard]] double loudnessMomentary() const requires ((mode & MODE_M) == MODE_M) {
+        [[nodiscard]] double loudnessMomentary() const requires ((mode & Mode::EBU_M) == Mode::EBU_M) {
             return meter.loudnessMomentary();
         }
 
@@ -178,7 +178,7 @@ namespace loudness {
          *  @return short-term loudness in LUFS. -HUGE_VAL if result is negative
          *             infinity.
          */
-        [[nodiscard]] double loudnessShortterm() const requires ((mode & MODE_S) == MODE_S) {
+        [[nodiscard]] double loudnessShortterm() const requires ((mode & Mode::EBU_S) == Mode::EBU_S) {
             return meter.loudnessShortterm();
         }
 
@@ -191,7 +191,7 @@ namespace loudness {
          *  @param  out loudness in LUFS. -HUGE_VAL if result is negative infinity.
          *  @throws std::invalid_argument if window is larger than supported
          */
-        [[nodiscard]] double loudnessWindow(unsigned long window) const requires ((mode & MODE_M) == MODE_M) {
+        [[nodiscard]] double loudnessWindow(unsigned long window) const requires ((mode & Mode::EBU_M) == Mode::EBU_M) {
             return meter.loudnessWindow(window);
         }
 
@@ -201,7 +201,7 @@ namespace loudness {
          *
          *  @return loudness range (LRA) in LU.
          */
-        [[nodiscard]] double loudnessRange() const requires ((mode & MODE_LRA) == MODE_LRA){
+        [[nodiscard]] double loudnessRange() const requires ((mode & Mode::EBU_LRA) == Mode::EBU_LRA){
             return meter.loudnessRange();
         }
 
@@ -213,7 +213,7 @@ namespace loudness {
          *  @return maximum sample peak in linear form (1.0 is 0 dBFS)
          *  @throws std::invalid_argument if channel_number out of range
          */
-        [[nodiscard]] double samplePeak(unsigned int channel_number) const requires ((mode & MODE_SAMPLE_PEAK) == MODE_SAMPLE_PEAK){
+        [[nodiscard]] double samplePeak(unsigned int channel_number) const requires ((mode & Mode::SamplePeak) == Mode::SamplePeak){
             return meter.samplePeak(channel_number);
         }
 
@@ -225,7 +225,7 @@ namespace loudness {
          *  @return maximum sample peak in in linear form (1.0 is 0 dBFS)
          *  @throws std::invalid_argument if channel_number out of range
          */
-        [[nodiscard]] double lastSamplePeak(unsigned int channel_number) const requires ((mode & MODE_SAMPLE_PEAK) == MODE_SAMPLE_PEAK) {
+        [[nodiscard]] double lastSamplePeak(unsigned int channel_number) const requires ((mode & Mode::SamplePeak) == Mode::SamplePeak) {
             return meter.lastSamplePeak(channel_number);
         }
 
@@ -245,7 +245,7 @@ namespace loudness {
          *  @return maximum true peak in linear form (1.0 is 0 dBTP)
          *  @throws std::invalid_argument if channel_number out of range
          */
-        [[nodiscard]] double truePeak(unsigned int channel_number) const requires ((mode & MODE_TRUE_PEAK) == MODE_TRUE_PEAK) {
+        [[nodiscard]] double truePeak(unsigned int channel_number) const requires ((mode & Mode::TruePeak) == Mode::TruePeak) {
             return meter.truePeak(channel_number);
         }
 
@@ -265,7 +265,7 @@ namespace loudness {
          *  @return maximum true peak in linear form (1.0 is 0 dBTP)
          *  @throws std::invalid_argument if channel_number out of range
          */
-        [[nodiscard]] double lastTruePeak(unsigned int channel_number) const requires ((mode & MODE_TRUE_PEAK) == MODE_TRUE_PEAK) {
+        [[nodiscard]] double lastTruePeak(unsigned int channel_number) const requires ((mode & Mode::TruePeak) == Mode::TruePeak) {
             return meter.lastTruePeak(channel_number);
         }
 
@@ -273,15 +273,17 @@ namespace loudness {
          *
          *  @return relative threshold in LUFS.
          */
-        [[nodiscard]] double relativeThreshold() const requires ((mode & MODE_I) == MODE_I){
+        [[nodiscard]] double relativeThreshold() const requires ((mode & Mode::EBU_I) == Mode::EBU_I){
             return meter.relativeThreshold();
         }
 
-        template<std::ranges::range Range>
-        friend double loudnessGlobalMultiple(const Range& meters);
+        template<template<class> class Range, Mode mode_>
+            requires std::ranges::range<Range<Meter<mode_>>> && ((mode_ & Mode::EBU_I) == Mode::EBU_I)
+        friend double loudnessGlobalMultiple(const Range<Meter<mode_>>& meters);
 
-        template<std::ranges::range Range>
-        friend double loudnessRangeMultiple(const Range& meters);
+        template<template<class> class Range, Mode mode_>
+            requires std::ranges::range<Range<Meter<mode_>>> && ((mode_ & Mode::EBU_LRA) == Mode::EBU_LRA)
+        friend double loudnessRangeMultiple(const Range<Meter<mode_>>& meters);
 
     private:
         detail::Meter meter;
@@ -292,13 +294,10 @@ namespace loudness {
      *  @param  meters range of loudness meters
      *  @return integrated loudness in LUFS. -HUGE_VAL if result is negative infinity.
      */
-    template<std::ranges::range Range>
-    [[nodiscard]] double loudnessGlobalMultiple(const Range& meters)
+    template<template<class> class Range, Mode mode>
+        requires std::ranges::range<Range<Meter<mode>>> && ((mode & Mode::EBU_I) == Mode::EBU_I)
+    [[nodiscard]] double loudnessGlobalMultiple(const Range<Meter<mode>>& meters)
     {
-        using MeterType = std::ranges::range_value_t<Range>;
-        static_assert(std::same_as<MeterType, Meter<MeterType::mode>>);
-        static_assert((MeterType::mode & MODE_I) == MODE_I);
-
         std::vector<const detail::Meter*> pimpls;
         pimpls.reserve(meters.size());
         for (const auto& meter : meters){
@@ -314,19 +313,16 @@ namespace loudness {
      *  @param  meters range of loudness meters
      *  @return loudness range (LRA) in LU.
      */
-    template<std::ranges::range Range>
-    [[nodiscard]] double loudnessRangeMultiple(const Range& meters)
+    template<template<class> class Range, Mode mode>
+        requires std::ranges::range<Range<Meter<mode>>> && ((mode & Mode::EBU_LRA) == Mode::EBU_LRA)
+    [[nodiscard]] double loudnessRangeMultiple(const Range<Meter<mode>>& meters)
     {
-        using MeterType = std::ranges::range_value_t<Range>;
-        static_assert(std::same_as<MeterType, Meter<MeterType::mode>>);
-        static_assert((MeterType::mode & MODE_LRA) == MODE_LRA);
-
         std::vector<const detail::Meter*> pimpls;
         pimpls.reserve(meters.size());
         for (const auto& meter : meters){
             pimpls.push_back(&meter.meter);
         }
-        if constexpr ((MeterType::mode & MODE_HISTOGRAM) == MODE_HISTOGRAM) {
+        if constexpr ((mode & Mode::Histogram) == Mode::Histogram) {
             return detail::Meter::loudnessRangeMultipleHist(pimpls);
         } else {
             return detail::Meter::loudnessRangeMultipleBlocks(pimpls);

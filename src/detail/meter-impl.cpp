@@ -27,7 +27,7 @@ namespace loudness::detail {
     };
 
     struct Impl {
-        Impl(unsigned int channels, unsigned long samplerate, unsigned int mode);
+        Impl(unsigned int channels, unsigned long samplerate, Mode mode);
 
         /** Number of subblocks to store. Each subblock is 100ms*/
         static constexpr int num_subblocks = st_subblocks;
@@ -85,7 +85,7 @@ namespace loudness::detail {
         std::unique_ptr<BS1770Calculator> bs1770_calculator;
 
         BS::thread_pool pool;
-        unsigned int mode;
+        Mode mode;
     };
 
     void Impl::initChannelMap(size_t num_channels)
@@ -154,7 +154,7 @@ namespace loudness::detail {
         }
     }
 
-    Meter::Meter(unsigned int channels, unsigned long samplerate, unsigned int mode)
+    Meter::Meter(unsigned int channels, unsigned long samplerate, Mode mode)
         : mode(mode), channels(channels), samplerate(samplerate)
     {
         assert(channels > 0 && channels <= MAX_CHANNELS);
@@ -163,10 +163,10 @@ namespace loudness::detail {
         pimpl = std::make_unique<Impl>(channels, samplerate, mode);
     }
 
-    Meter::~Meter() = default;
+    Meter::~Meter() noexcept = default;
     Meter::Meter(Meter&& other) noexcept = default;
 
-    Impl::Impl(unsigned int channels, unsigned long samplerate, unsigned int mode)
+    Impl::Impl(unsigned int channels, unsigned long samplerate, Mode mode)
         : calculated_subblocks(channels, std::deque<double>()),
           samples_in_100ms((samplerate + 5) / 10),
           /* the first block needs 400ms of audio data */
@@ -179,17 +179,17 @@ namespace loudness::detail {
     {
         initChannelMap(channels);
 
-        if ((mode & MODE_HISTOGRAM) == MODE_HISTOGRAM) {
+        if ((mode & Mode::Histogram) == Mode::Histogram) {
             bs1770_calculator = std::make_unique<HistogramCalculator>();
         }
         else {
             bs1770_calculator = std::make_unique<BlockListCalculator>();
         }
 
-        if ((mode & MODE_S) == MODE_S) {
+        if ((mode & Mode::EBU_S) == Mode::EBU_S) {
             window_ms = shortterm_block_ms;
         }
-        else if ((mode & MODE_M) == MODE_M) {
+        else if ((mode & Mode::EBU_M) == Mode::EBU_M) {
             window_ms = momentary_block_ms;
         } else {
             // Disable window
@@ -203,7 +203,7 @@ namespace loudness::detail {
         }
         audio_data.assign(channels, std::vector<double>(audio_data_frames));
 
-        if ((mode & MODE_TRUE_PEAK) == MODE_TRUE_PEAK) {
+        if ((mode & Mode::TruePeak) == Mode::TruePeak) {
             if (samplerate < 96000) {
                 resampler = std::make_unique<Interpolator>(49, 4, channels);
             }
@@ -304,11 +304,11 @@ namespace loudness::detail {
                 src_index += needed_frames;
                 frames -= needed_frames;
                 /* calculate the new gating block */
-                if ((mode & MODE_I) == MODE_I) {
+                if ((mode & Mode::EBU_I) == Mode::EBU_I) {
                     calcSubBlocks();
                     addIntegrationBlock();
                 }
-                if ((mode & MODE_LRA) == MODE_LRA) {
+                if ((mode & Mode::EBU_LRA) == Mode::EBU_LRA) {
                     calcSubBlocks();
                     short_term_frame_counter += needed_frames;
                     if (short_term_frame_counter == samples_in_100ms * st_subblocks) {
@@ -330,7 +330,7 @@ namespace loudness::detail {
                 std::visit([this, src_index, frames](auto&& src){
                     filter(src, src_index, frames);
                 }, src);
-                if ((mode & MODE_LRA) == MODE_LRA) {
+                if ((mode & Mode::EBU_LRA) == Mode::EBU_LRA) {
                     short_term_frame_counter += frames;
                 }
                 needed_frames -= static_cast<unsigned long>(frames);
@@ -401,11 +401,11 @@ namespace loudness::detail {
 
     bool Meter::changeParameters(unsigned int channels, unsigned long samplerate)
     {
-        if (channels == 0 || channels > MAX_CHANNELS) {
+        if (channels == 0 || channels > max_channels) {
             throw std::invalid_argument("Requested channels larger than maximum");
         }
 
-        if (samplerate < MIN_SAMPLERATE || samplerate > MAX_SAMPLERATE) {
+        if (samplerate < min_samplerate || samplerate > max_samplerate) {
             throw std::invalid_argument("Requested samplerate larger whan maximum");
         }
 
@@ -438,7 +438,7 @@ namespace loudness::detail {
         }
         pimpl->audio_data.assign(channels, std::vector<double>(pimpl->audio_data_frames));
 
-        if ((mode & MODE_TRUE_PEAK) == MODE_TRUE_PEAK) {
+        if ((mode & Mode::TruePeak) == Mode::TruePeak) {
             if (samplerate < 96000) {
                 pimpl->resampler = std::make_unique<Interpolator>(49, 4, channels);
             }
@@ -461,10 +461,10 @@ namespace loudness::detail {
 
     bool Meter::setMaxWindow(unsigned long window_ms)
     {
-        if ((mode & MODE_S) == MODE_S && window_ms < shortterm_block_ms) {
+        if ((mode & Mode::EBU_S) == Mode::EBU_S && window_ms < shortterm_block_ms) {
             window_ms = shortterm_block_ms;
         }
-        else if ((mode & MODE_M) == MODE_M && window_ms < momentary_block_ms) {
+        else if ((mode & Mode::EBU_M) == Mode::EBU_M && window_ms < momentary_block_ms) {
             window_ms = momentary_block_ms;
         }
 
@@ -499,10 +499,10 @@ namespace loudness::detail {
 
     bool Meter::setMaxHistory(unsigned long history_ms)
     {
-        if ((mode & MODE_LRA) == MODE_LRA && history_ms < shortterm_block_ms) {
+        if ((mode & Mode::EBU_LRA) == Mode::EBU_LRA && history_ms < shortterm_block_ms) {
             history_ms = shortterm_block_ms;
         }
-        else if ((mode & MODE_M) == MODE_M && history_ms < momentary_block_ms) {
+        else if ((mode & Mode::EBU_M) == Mode::EBU_M && history_ms < momentary_block_ms) {
             history_ms = momentary_block_ms;
         }
 
@@ -514,7 +514,7 @@ namespace loudness::detail {
     {
 //        addFramesSeq(src, frames);
 
-        if ((mode & MODE_TRUE_PEAK) == MODE_TRUE_PEAK) {
+        if ((mode & Mode::TruePeak) == Mode::TruePeak) {
             for (size_t c = 0; c < channels; ++c){
                 pimpl->pool.push_task([this, c, src, frames] {
                     const ScopedFTZ guard;
@@ -527,11 +527,11 @@ namespace loudness::detail {
                 });
             }
         }
-        if ((mode & MODE_M) == MODE_M){
+        if ((mode & Mode::EBU_M) == Mode::EBU_M){
             pimpl->pool.push_task(&Impl::addFramesLoudness, pimpl.get(), src, frames);
         }
         // Sample peak so lightweight it is never worth parallelizing channels
-        if ((mode & MODE_SAMPLE_PEAK) == MODE_SAMPLE_PEAK) {
+        if ((mode & Mode::SamplePeak) == Mode::SamplePeak) {
             pimpl->pool.push_task([this, src, frames]{
                 std::visit([this, frames](auto&& src){
                     for (size_t c = 0; c < channels; ++c){
@@ -549,7 +549,7 @@ namespace loudness::detail {
     {
         ScopedFTZ guard;
         // Find new sample peak
-        if ((mode & MODE_SAMPLE_PEAK) == MODE_SAMPLE_PEAK) {
+        if ((mode & Mode::SamplePeak) == Mode::SamplePeak) {
             for (size_t c = 0; c < channels; ++c){
                 std::visit([this, frames, c](auto&& src){
                     pimpl->findSamplePeaks(src, frames, c);
@@ -568,7 +568,7 @@ namespace loudness::detail {
             }
         }
 
-        if ((mode & MODE_M) == MODE_M){
+        if ((mode & Mode::EBU_M) == Mode::EBU_M){
             pimpl->addFramesLoudness(src, frames);
         }
     }
@@ -627,7 +627,7 @@ namespace loudness::detail {
 
     double Meter::loudnessRange() const {
         // TODO: Find better solution here, avoiding dynamic cast
-        if ((mode & MODE_HISTOGRAM) == MODE_HISTOGRAM) {
+        if ((mode & Mode::Histogram) == Mode::Histogram) {
             return HistogramCalculator::loudnessRangeMultiple({dynamic_cast<HistogramCalculator*>(pimpl->bs1770_calculator.get())});
         } else {
             return  BlockListCalculator::loudnessRangeMultiple({dynamic_cast<BlockListCalculator*>(pimpl->bs1770_calculator.get())});

@@ -179,7 +179,7 @@ namespace loudness {
         short_term_block_list_.push_back(energy);
     }
 
-    bool BlockListCalculator::setMaxHistory(unsigned long history_ms)
+    bool BlockListCalculator::setMaxHistory(unsigned long history_ms) noexcept
     {
         if (history_ms == history_ms_) return false;
         history_ms_ = history_ms;

@@ -17,7 +17,7 @@ namespace loudness {
         virtual ~BS1770Calculator() = default;
         virtual void addBlock(double energy) = 0;
         virtual void addShortTermBlock(double energy) = 0;
-        virtual bool setMaxHistory(unsigned long /*history_ms*/) { return false; };
+        virtual bool setMaxHistory(unsigned long /*history_ms*/) noexcept { return false; };
 
         [[nodiscard]] virtual ValueCounter relativeThreshold() const = 0;
         [[nodiscard]] virtual ValueCounter gatedLoudness(double relative_threshold) const = 0;
@@ -30,7 +30,7 @@ namespace loudness {
 
         void addBlock(double energy) override;
         void addShortTermBlock(double energy) override;
-        bool setMaxHistory(unsigned long history_ms) override;
+        bool setMaxHistory(unsigned long history_ms) noexcept override;
 
         [[nodiscard]] ValueCounter relativeThreshold() const override;
         [[nodiscard]] ValueCounter gatedLoudness(double relative_threshold) const override;

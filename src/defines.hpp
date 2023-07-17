@@ -2,73 +2,80 @@
 #define DEFINES_HPP
 
 #include <type_traits>
+#include <cstdint>
 #include <variant>
 
 namespace loudness {
     /** \enum Channel
-     *  Use these values when setting the channel map with Ebur128::setChannel().
+     *  Use these values when setting the channel map with Meter::setChannel().
      *  See definitions in ITU R-REC-BS 1770-4
      */
-    enum class Channel {
+    enum class Channel : uint_fast8_t {
         UNUSED = 0,         /**< unused channel (for example LFE channel) */
         LEFT = 1,           /**<           */
-        Mp030 = 1,          /**< itu M+030 */
+        Mp030 = 1,          /**< ITU M+030 */
         RIGHT = 2,          /**<           */
-        Mm030 = 2,          /**< itu M-030 */
+        Mm030 = 2,          /**< ITU M-030 */
         CENTER = 3,         /**<           */
-        Mp000 = 3,          /**< itu M+000 */
+        Mp000 = 3,          /**< ITU M+000 */
         LEFT_SURROUND = 4,  /**<           */
-        Mp110 = 4,          /**< itu M+110 */
+        Mp110 = 4,          /**< ITU M+110 */
         RIGHT_SURROUND = 5, /**<           */
-        Mm110 = 5,          /**< itu M-110 */
+        Mm110 = 5,          /**< ITU M-110 */
         DUAL_MONO,          /**< a channel that is counted twice */
-        MpSC,               /**< itu M+SC  */
-        MmSC,               /**< itu M-SC  */
-        Mp060,              /**< itu M+060 */
-        Mm060,              /**< itu M-060 */
-        Mp090,              /**< itu M+090 */
-        Mm090,              /**< itu M-090 */
-        Mp135,              /**< itu M+135 */
-        Mm135,              /**< itu M-135 */
-        Mp180,              /**< itu M+180 */
-        Up000,              /**< itu U+000 */
-        Up030,              /**< itu U+030 */
-        Um030,              /**< itu U-030 */
-        Up045,              /**< itu U+045 */
-        Um045,              /**< itu U-030 */
-        Up090,              /**< itu U+090 */
-        Um090,              /**< itu U-090 */
-        Up110,              /**< itu U+110 */
-        Um110,              /**< itu U-110 */
-        Up135,              /**< itu U+135 */
-        Um135,              /**< itu U-135 */
-        Up180,              /**< itu U+180 */
-        Tp000,              /**< itu T+000 */
-        Bp000,              /**< itu B+000 */
-        Bp045,              /**< itu B+045 */
-        Bm045               /**< itu B-045 */
+        MpSC,               /**< ITU M+SC  */
+        MmSC,               /**< ITU M-SC  */
+        Mp060,              /**< ITU M+060 */
+        Mm060,              /**< ITU M-060 */
+        Mp090,              /**< ITU M+090 */
+        Mm090,              /**< ITU M-090 */
+        Mp135,              /**< ITU M+135 */
+        Mm135,              /**< ITU M-135 */
+        Mp180,              /**< ITU M+180 */
+        Up000,              /**< ITU U+000 */
+        Up030,              /**< ITU U+030 */
+        Um030,              /**< ITU U-030 */
+        Up045,              /**< ITU U+045 */
+        Um045,              /**< ITU U-030 */
+        Up090,              /**< ITU U+090 */
+        Um090,              /**< ITU U-090 */
+        Up110,              /**< ITU U+110 */
+        Um110,              /**< ITU U-110 */
+        Up135,              /**< ITU U+135 */
+        Um135,              /**< ITU U-135 */
+        Up180,              /**< ITU U+180 */
+        Tp000,              /**< ITU T+000 */
+        Bp000,              /**< ITU B+000 */
+        Bp045,              /**< ITU B+045 */
+        Bm045               /**< ITU B-045 */
     };
 
-    /** \enum mode
-     *  Use these values for Ebur128 mode. Try to use the lowest possible
-     *  modes that suit your needs, as performance will be better.
+    /** \enum Mode
+     *  Use these values for Meter mode. Try to use the lowest possible
+     *  combination that suit your needs, as performance will be better.
      */
-    enum mode : unsigned {
-        /** can call Ebur128::loudnessMomentary */
-        MODE_M = (1U << 0U),
-        /** can call Ebur128::loudnessShortterm */
-        MODE_S = (1U << 1U) | MODE_M,
-        /** can call Ebur128::loudnessGlobal_* and Ebur128::relativeThreshold */
-        MODE_I = (1U << 2U) | MODE_M,
-        /** can call Ebur128::loudnessRange */
-        MODE_LRA = (1U << 3U) | MODE_M,
-        /** can call Ebur128::samplePeak */
-        MODE_SAMPLE_PEAK = (1U << 4U),
-        /** can call Ebur128::truePeak */
-        MODE_TRUE_PEAK = (1U << 5U) | MODE_SAMPLE_PEAK,
-        /** uses histogram algorithm to calculate loudness */
-        MODE_HISTOGRAM = (1U << 6U)
+    enum class Mode : uint_fast8_t {
+        EBU_M = (1U << 0U),
+        EBU_S = (1U << 1U) | EBU_M,
+        EBU_I = (1U << 2U) | EBU_M,
+        EBU_LRA = (1U << 3U) | EBU_M,
+        SamplePeak = (1U << 4U),
+        TruePeak = (1U << 5U) | SamplePeak,
+        /** uses histogram algorithm to calculate global loudness */
+        Histogram = (1U << 6U)
     };
+
+    [[nodiscard]] constexpr Mode operator& (Mode x, Mode y)
+    {
+        using utype = std::underlying_type_t<Mode>;
+        return static_cast<Mode>(static_cast<utype>(x) & static_cast<utype>(y));
+    }
+
+    [[nodiscard]] constexpr Mode operator| (Mode x, Mode y)
+    {
+        using utype = std::underlying_type_t<Mode>;
+        return static_cast<Mode>(static_cast<utype>(x) | static_cast<utype>(y));
+    }
 
     using DataType = std::variant<const float*, const float**, const double*, const double**, const short*, const short**, const int*, const int**>;
 } // namespace loudness

@@ -36,7 +36,7 @@ namespace loudness {
     template <typename T>
     concept ConstData = std::is_const_v<T> || std::is_const_v<std::remove_pointer_t<T>>;
 
-    static inline double energyToLoudness(double energy) { return 10 * std::log10(energy) - 0.691; }
+    inline double energyToLoudness(double energy) { return 10 * std::log10(energy) - 0.691; }
 
     consteval double loudnessToEnergy(double lufs) { return gcem::pow(10.0, (lufs + 0.691) / 10.0); }
 
