@@ -81,7 +81,7 @@ namespace loudness::detail {
         /** The maximum window duration in ms. */
         unsigned long window_ms;
 
-        std::unique_ptr<Interpolator> resampler;
+        std::optional<Interpolator> interpolator;
         std::unique_ptr<BS1770Calculator> bs1770_calculator;
 
         BS::thread_pool pool;
@@ -157,8 +157,8 @@ namespace loudness::detail {
     Meter::Meter(unsigned int channels, unsigned long samplerate, Mode mode)
         : mode(mode), channels(channels), samplerate(samplerate)
     {
-        assert(channels > 0 && channels <= MAX_CHANNELS);
-        assert(samplerate >= MIN_SAMPLERATE && samplerate <= MAX_SAMPLERATE);
+        assert(channels > 0 && channels <= max_channels);
+        assert(samplerate >= min_samplerate && samplerate <= max_samplerate);
 
         pimpl = std::make_unique<Impl>(channels, samplerate, mode);
     }
@@ -205,13 +205,13 @@ namespace loudness::detail {
 
         if ((mode & Mode::TruePeak) == Mode::TruePeak) {
             if (samplerate < 96000) {
-                resampler = std::make_unique<Interpolator>(49, 4, channels);
+                interpolator.emplace(49, 4, channels);
             }
             else if (samplerate < 192000) {
-                resampler = std::make_unique<Interpolator>(49, 2, channels);
+                interpolator.emplace(49, 2, channels);
             }
             else {
-                resampler = nullptr;
+                interpolator = std::nullopt;
             }
         }
     }
@@ -440,13 +440,13 @@ namespace loudness::detail {
 
         if ((mode & Mode::TruePeak) == Mode::TruePeak) {
             if (samplerate < 96000) {
-                pimpl->resampler = std::make_unique<Interpolator>(49, 4, channels);
+                pimpl->interpolator.emplace(49, 4, channels);
             }
             else if (samplerate < 192000) {
-                pimpl->resampler = std::make_unique<Interpolator>(49, 2, channels);
+                pimpl->interpolator.emplace(49, 2, channels);
             }
             else {
-                pimpl->resampler = nullptr;
+                pimpl->interpolator = std::nullopt;
             }
         }
         /* the first block needs 400ms of audio data */
@@ -514,15 +514,15 @@ namespace loudness::detail {
     {
 //        addFramesSeq(src, frames);
 
-        if ((mode & Mode::TruePeak) == Mode::TruePeak) {
+        if (pimpl->interpolator.has_value()) {
             for (size_t c = 0; c < channels; ++c){
                 pimpl->pool.push_task([this, c, src, frames] {
                     const ScopedFTZ guard;
                     std::visit([this, c, frames](auto&& src){
-                        pimpl->resampler->process(src, frames, c);
+                        pimpl->interpolator->process(src, frames, c);
                     }, src);
-                    if (pimpl->resampler->peak(c) > pimpl->true_peak[c]) {
-                        pimpl->true_peak[c] = pimpl->resampler->peak(c);
+                    if (pimpl->interpolator->peak(c) > pimpl->true_peak[c]) {
+                        pimpl->true_peak[c] = pimpl->interpolator->peak(c);
                     }
                 });
             }
@@ -557,13 +557,13 @@ namespace loudness::detail {
             }
         }
         // Find new true peak
-        if (pimpl->resampler) {
+        if (pimpl->interpolator.has_value()) {
             for (size_t c = 0; c < channels; ++c){
                 std::visit([this, frames, c](auto&& src){
-                    pimpl->resampler->process(src, frames, c);
+                    pimpl->interpolator->process(src, frames, c);
                 }, src);
-                if (pimpl->resampler->peak(c) > pimpl->true_peak[c]) {
-                    pimpl->true_peak[c] = pimpl->resampler->peak(c);
+                if (pimpl->interpolator->peak(c) > pimpl->true_peak[c]) {
+                    pimpl->true_peak[c] = pimpl->interpolator->peak(c);
                 }
             }
         }
@@ -679,8 +679,8 @@ namespace loudness::detail {
         if (channel_index >= channels) {
             throw std::invalid_argument("Invalid channel index");
         }
-        if (pimpl->resampler){
-            return std::max(static_cast<double>(pimpl->resampler->peak(channel_index)),
+        if (pimpl->interpolator.has_value()){
+            return std::max(static_cast<double>(pimpl->interpolator->peak(channel_index)),
                             pimpl->last_sample_peak[channel_index]);
         }
         return pimpl->last_sample_peak[channel_index];

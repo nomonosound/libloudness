@@ -6,47 +6,37 @@
 #include "utils.hpp"
 #include <cassert>
 
-static constexpr double ALMOST_ZERO = 0.000001;
-
 namespace loudness {
-    Interpolator::Interpolator(unsigned int taps, unsigned int factor, unsigned int channels)
-        : factor_(factor),
-          channels_(channels),
-          delay_((taps - 1 + factor) / factor),
-          chan_data_(channels, {.buffer = std::vector<float>(delay_), .index = 0, .peak = 0.0})
-    {
-        assert(taps % 2 == 1); // Assert odd number of taps
+    namespace {
+        static constexpr double almost_zero = 0.000001;
 
-        /* Initialize the filter memory
-         * One subfilter per interpolation factor. */
-        filter_ = std::vector<InterpFilter>(
-            factor, {.indicies = std::vector<std::vector<unsigned int>>(delay_), .coeff = {}});
-
-        /* Calculate the filter coefficients */
-        for (unsigned int j = 0; j < taps; j++) {
-            /* Calculate sinc */
-            const double m = static_cast<double>(j) - static_cast<double>(taps - 1) / 2.0;
-            double c = std::abs(m) > ALMOST_ZERO ? sinc(m * std::numbers::pi / factor) : 1.0;
-
-            /* Apply Hann window */
-            c *= 0.5 * (1 - std::cos(2 * std::numbers::pi * j / (taps - 1)));
-
-            if (std::abs(c) > ALMOST_ZERO) { /* Ignore any zero coeffs. */
-                /* Put the coefficient into the correct subfilter */
+        auto createFilter(unsigned int taps, unsigned int factor) {
+            std::vector<std::vector<double>> filter(factor - 1);
+            for (unsigned int j = taps; j-- > 0;) {
                 const unsigned int f = j % factor;
-                filter_[f].coeff.push_back(c);
-                filter_[f].indicies[0].push_back(j / factor);
+                /* Skip first factor, as it just equals an input sample */
+                if (f == 0) continue;
+
+                /* Calculate sinc */
+                const double m = static_cast<double>(j) - static_cast<double>(taps - 1) / 2.0;
+                double c = std::abs(m) > almost_zero ? sinc(m * std::numbers::pi / factor) : 1.0;
+
+                /* Apply Hann window */
+                c *= 0.5 * (1 - std::cos(2 * std::numbers::pi * j / (taps - 1)));
+
+                /* Put the coefficient into the correct subfilter.
+                 * First factor is skipped, none of the others have zeros.
+                 */
+                filter[f-1].push_back(c);
             }
+            return filter;
         }
-        // Precalculate buffer indicies for each tap for each buffer index
-        for (auto& filter : filter_){
-            for (size_t i = delay_; i-- > 0;){
-                filter.indicies[i].resize(filter.coeff.size());
-                for (size_t t = 0; t < filter.coeff.size(); ++t){
-                    filter.indicies[i][t] = filter.indicies[0][t] > i ? i + delay_ - filter.indicies[0][t] : i - filter.indicies[0][t];
-                }
-            }
-        }
+    }
+    Interpolator::Interpolator(unsigned int taps, unsigned int factor, unsigned int channels)
+        : filter_(createFilter(taps, factor)),
+          chan_data_(channels, {.buffer = std::vector<float>((taps - 1) / factor), .index = 0, .peak = 0.0})
+    {
+        assert(taps % 2 == 1); // Some optimizations assume odd number of taps
     }
 
     double Interpolator::peak(unsigned int channel) const {

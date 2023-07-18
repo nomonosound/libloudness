@@ -19,78 +19,76 @@ namespace loudness {
         Interpolator(unsigned int taps, unsigned int factor, unsigned int channels);
 
         template <ConstData T>
-        void process(T* in, std::size_t frames, std::size_t chan);
+        void process(T* in_data, std::size_t frames, std::size_t chan);
         [[nodiscard]] double peak(unsigned int channel) const;
 
-        [[nodiscard]] unsigned int factor() const { return factor_; }
-        [[nodiscard]] unsigned int channels() const { return channels_; }
+        [[nodiscard]] unsigned int channels() const { return chan_data_.size(); }
 
     private:
-        struct InterpFilter {
-            std::vector<std::vector<unsigned int>> indicies;
-            std::vector<double> coeff;
-        };
-
         struct ChannelData {
             std::vector<float> buffer;
             size_t index;
             double peak;
         };
 
-        const unsigned int factor_;   /* Interpolation factor of the interpolator */
-        const unsigned int channels_; /* Number of channels */
-        const unsigned int delay_;    /* Size of delay buffer */
-        std::vector<InterpFilter> filter_;
+        const std::vector<std::vector<double>> filter_;
         std::vector<ChannelData> chan_data_;
     };
 
     template <ConstData T>
-    void Interpolator::process(T* in, std::size_t frames, std::size_t chan)
+    void Interpolator::process(T* in_data, std::size_t frames, std::size_t chan)
     {
-        auto& [buffer, buf_i, peak] = chan_data_[chan];
-        peak = 0.0;
+        const auto buffer = std::span(chan_data_[chan].buffer);
+        /* Have these variables on the local thread's stack to let the CPU optimize better */
+        double peak = 0.0;
+        auto buf_i = chan_data_[chan].index;
+
         if constexpr (not std::is_pointer_v<T>){
-            in += chan;
+            in_data += chan;
         }
-        for (std::size_t frame = 0; frame < frames; frame++) {
+        for (std::size_t frame = 0; frame < frames; ++frame) {
                 /* Add sample to delay buffer */
                 if constexpr (std::is_pointer_v<T>){
                     using U = std::remove_pointer_t<T>;
-                    if constexpr (std::is_floating_point_v<U>){
-                        buffer[buf_i] = static_cast<float>(in[chan][frame]);
+                    if constexpr (std::floating_point<U>){
+                        buffer[buf_i] = static_cast<float>(in_data[chan][frame]);
                     } else {
-                        buffer[buf_i] = static_cast<float>(static_cast<double>(in[chan][frame]) / getScalingFactor<U>());
+                        buffer[buf_i] = static_cast<float>(static_cast<double>(in_data[chan][frame]) / getScalingFactor<U>());
                     }
                 } else {
-                    if constexpr (std::is_floating_point_v<T>){
-                        buffer[buf_i] = static_cast<float>(*in);
+                    if constexpr (std::floating_point<T>){
+                        buffer[buf_i] = static_cast<float>(*in_data);
                     } else {
-                        buffer[buf_i] = static_cast<float>(static_cast<double>(*in) / getScalingFactor<T>());
+                        buffer[buf_i] = static_cast<float>(static_cast<double>(*in_data) / getScalingFactor<T>());
                     }
-                    in += channels_;
+                    in_data += chan_data_.size();
                 }
 
                 /* Apply coefficients */
-                // Skip first factor, as it is the same as the original sample, so caught by sample peak
-                for (unsigned int f = 1; f < factor_; f++) {
+                for (const auto& coeffs : filter_) {
+                    /* The accumulation is split over the seam in the circular buffer */
                     double acc = std::transform_reduce(
-                                filter_[f].coeff.cbegin(),
-                                filter_[f].coeff.cend(),
-                                filter_[f].indicies[buf_i].cbegin(),
-                                0.0,
-                                std::plus<>(),
-                                [&buffer](auto coeff, auto index){ return static_cast<double>(buffer[index]) * coeff;}
-                                );
+                                buffer.begin() + buf_i + 1,
+                                buffer.end(),
+                                coeffs.cbegin(),
+                                std::transform_reduce(
+                                    coeffs.cbegin() + coeffs.size() - 1 - buf_i,
+                                    coeffs.cend(),
+                                    buffer.begin(),
+                                    0.0
+                                ));
                     acc = std::abs(acc);
-                    if (acc > peak){
+                    if (acc > peak) {
                         peak = acc;
                     }
                 }
             ++buf_i;
-            if (buf_i == delay_) {
+            if (buf_i == buffer.size()) {
                 buf_i = 0;
             }
         }
+        chan_data_[chan].index = buf_i;
+        chan_data_[chan].peak = peak;
     }
 } // namespace loudness
 #endif  // INTERPOLATOR_HPP

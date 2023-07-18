@@ -86,7 +86,7 @@ public:
         return (matchee + lower_margin_ >= target_) && (target_ + upper_margin_ >= matchee);
     }
     std::string describe() const override {
-        return "Check value is within specified upper and lower margin of target";
+        return std::string("Check value is within ") + std::to_string(target_) + " +" + std::to_string(upper_margin_) + " -" + std::to_string(lower_margin_);
     }
 private:
     double target_;
