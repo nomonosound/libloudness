@@ -45,15 +45,15 @@ namespace loudness {
         ++short_term_block_energy_histogram[findHistogramIndex(energy)];
     }
 
-    ValueCounter HistogramCalculator::relativeThreshold() const
+    ValueCounter HistogramCalculator::blockCountAndSum() const
     {
         return {
-            .counter = std::reduce(block_energy_histogram.cbegin(), block_energy_histogram.cend(), 0UL),
+            .count = std::reduce(block_energy_histogram.cbegin(), block_energy_histogram.cend(), 0UL),
             .sum = std::transform_reduce(block_energy_histogram.cbegin(), block_energy_histogram.cend(), histogram_energies.cbegin(), 0.0)
         };
     }
 
-    ValueCounter HistogramCalculator::gatedLoudness(double relative_threshold) const
+    ValueCounter HistogramCalculator::loudness(double relative_threshold) const
     {
         size_t above_thresh_counter = 0;
         double gated_loudness = 0.0;
@@ -62,10 +62,10 @@ namespace loudness {
             above_thresh_counter += block_energy_histogram[j];
         }
 
-        return {.counter=above_thresh_counter, .sum=gated_loudness};
+        return {.count=above_thresh_counter, .sum=gated_loudness};
     }
 
-    double HistogramCalculator::gatedMedianLoudness(double relative_threshold) const
+    double HistogramCalculator::medianLoudness(double relative_threshold) const
     {
         size_t i = relative_threshold_index(relative_threshold);
         const auto total = std::reduce(block_energy_histogram.cbegin() + i, block_energy_histogram.cend(), 0UL);
@@ -83,6 +83,11 @@ namespace loudness {
             return (histogram_energies[i - 1] + histogram_energies[j]) / 2;
         }
         return histogram_energies[i - 1];
+    }
+
+    double HistogramCalculator::ungatedMedianLoudness() const
+    {
+        return medianLoudness(minimum_energy);
     }
 
 
@@ -193,12 +198,12 @@ namespace loudness {
         }
         return true;
     }
-    ValueCounter BlockListCalculator::relativeThreshold() const
+    ValueCounter BlockListCalculator::blockCountAndSum() const
     {
-        return {.counter = block_list_.size(), .sum = std::reduce(block_list_.cbegin(), block_list_.cend(), 0.0)};
+        return {.count = block_list_.size(), .sum = std::reduce(block_list_.cbegin(), block_list_.cend(), 0.0)};
     }
 
-    ValueCounter BlockListCalculator::gatedLoudness(double relative_threshold) const
+    ValueCounter BlockListCalculator::loudness(double relative_threshold) const
     {
         double gated_loudness = 0.0;
         size_t above_thresh_counter = 0;
@@ -208,12 +213,18 @@ namespace loudness {
                 gated_loudness += block;
             }
         }
-        return {.counter=above_thresh_counter, .sum=gated_loudness};
+        return {.count=above_thresh_counter, .sum=gated_loudness};
     }
 
-    double BlockListCalculator::gatedMedianLoudness(double relative_threshold) const
+    double BlockListCalculator::medianLoudness(double relative_threshold) const
     {
         return median(std::views::filter(block_list_, [relative_threshold](auto val){return val >= relative_threshold;}));
+    }
+
+    double BlockListCalculator::ungatedMedianLoudness() const
+    {
+        // List doesn't need to be chronological, so might as well take the median in place.
+        return median(block_list_);
     }
 
     double BlockListCalculator::loudnessRangeMultiple(const std::vector<const BlockListCalculator*>& block_lists)

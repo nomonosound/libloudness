@@ -1,5 +1,5 @@
-#ifndef TEST_UTILITIES
-#define TEST_UTILITIES
+#ifndef LOUDNESS_TEST_UTILITIES
+#define LOUDNESS_TEST_UTILITIES
 #include <algorithm>
 #include <cassert>
 #include <catch2/matchers/catch_matchers_templated.hpp>
@@ -82,7 +82,7 @@ public:
         : target_(target), lower_margin_(lower_margin), upper_margin_(upper_margin)
     {
     }
-    bool match(double const& matchee) const {
+    bool match(double matchee) const {
         return (matchee + lower_margin_ >= target_) && (target_ + upper_margin_ >= matchee);
     }
     std::string describe() const override {
@@ -93,4 +93,4 @@ private:
     double lower_margin_;
     double upper_margin_;
 };
-#endif // TEST_UTILITIES
+#endif // LOUDNESS_TEST_UTILITIES

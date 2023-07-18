@@ -1,7 +1,7 @@
 /* See COPYING file for copyright and license details. */
 
-#ifndef METER_HPP
-#define METER_HPP
+#ifndef LOUDNESS_METER_HPP
+#define LOUDNESS_METER_HPP
 
 /** @file meter.hpp
  *  @brief libloudness - a library for loudness measurements according to
@@ -15,11 +15,6 @@
 #include <vector>
 
 namespace loudness {
-    template <typename T>
-    concept HasDataPointer = requires (T t) {
-       *t.data();
-    };
-
     template <Mode mode>
     class Meter {
     public:
@@ -29,7 +24,7 @@ namespace loudness {
          *  @param  channels   the number of channels.
          *  @param  samplerate the sample rate.
          */
-        Meter(unsigned int channels, unsigned long samplerate) : meter{channels, samplerate, mode}{
+        Meter(NumChannels channels, Samplerate samplerate) : meter{channels, samplerate, mode}{
         }
 
         /** @brief Set channel type.
@@ -44,7 +39,7 @@ namespace loudness {
          *
          *  @param channel_number zero based channel index.
          *  @param value channel type from the "channel" enum.
-         *  @throws std::invalid_argument if channel_number out of range or value invalid
+         *  @throws std::domain_error if channel_number out of range or value invalid
          */
         void setChannel(unsigned int channel_number, Channel value) {
             meter.setChannel(channel_number, value);
@@ -58,23 +53,23 @@ namespace loudness {
          *  @param  channels   new number of channels.
          *  @param  samplerate new sample rate.
          *  @return bool if parameters were changed or not
-         *  @throws std::invalid_argument if channels or samplerate are larger than supported
+         *  @throws std::domain_error if channels or samplerate are larger than supported
          */
-        bool changeParameters(unsigned int channels, unsigned long samplerate) {
+        bool changeParameters(NumChannels channels, Samplerate samplerate) {
             return meter.changeParameters(channels, samplerate);
         }
 
         /** @brief Set the maximum window duration.
          *
          *  Set the maximum duration that will be used for loudnessWindow().
-         *  Minimum is enforced to 400 ms for EBU_M and 3000 ms for
+         *  Clamped to minimum of 400 ms for EBU_M and 3000 ms for
          *  EBU_S.
          *
          *  @warning This destroys the current content of the audio buffer.
          *
          *  @param  window duration of the window in ms.
          *  @return bool if window duration was changed or not
-         *  @throws std::invalid_argument if window is too large
+         *  @throws std::domain_error if window is too large
          */
         bool setMaxWindow(unsigned long window) requires ((mode & Mode::EBU_M) == Mode::EBU_M){
             return meter.setMaxWindow(window);
@@ -108,12 +103,18 @@ namespace loudness {
             meter.addFrames(src, frames);
         }
 
-        void addFramesSeq(DataType src, size_t frames){
-            meter.addFramesSeq(src, frames);
+        /** @brief Multithreaded version of addFrames
+         *
+         *  @param src    Pointer to array of source frames.
+         *                Either 1d interleaved, or 2d ordered channel, samples
+         *  @param frames Number of frames. Not number of samples!
+         */
+        void addFramesMT(DataType src, size_t frames){
+            meter.addFramesMT(src, frames);
         }
 
 
-        /** @brief Add frames to be processed.
+        /** @brief Add frames to be processed as ranges of channels
          *
          *  @param src    Range of individual channels to be processed.
          *                Channels need to be continous
@@ -121,29 +122,18 @@ namespace loudness {
          */
         template <std::ranges::range Range>
         void addFrames(Range src, size_t frames) {
-            using T = std::ranges::range_value_t<Range>;
-            if constexpr (std::is_pointer_v<T>){
-                using U = std::add_pointer_t<std::add_const_t<std::remove_pointer_t<T>>>;
-                if constexpr (HasDataPointer<Range> && std::is_const_v<std::remove_pointer_t<T>>){
-                    meter.addFrames(src.data(), frames);
-                } else {
-                    std::vector<U> data;
-                    for (auto* ptr : src){
-                        data.push_back(ptr);
-                    }
-                    meter.addFrames(data.data(), frames);
-                }
-            } else if constexpr (HasDataPointer<T>){
-                using U = std::add_pointer_t<std::add_const_t<std::remove_pointer_t<decltype(src.begin()->data())>>>;
-                std::vector<U> data;
-                for (auto& container : src){
-                    data.push_back(container.data());
-                }
-                meter.addFrames(data.data(), frames);
-            } else {
-                // Add it as interleaved/single channel if possible
-                meter.addFrames(src.data(), frames);
-            }
+            meter.addFrames(src, frames);
+        }
+
+        /** @brief Multithreaded version of addFrames
+         *
+         *  @param src    Range of individual channels to be processed.
+         *                Channels need to be continous
+         *  @param frames Number of frames. Not number of samples!
+         */
+        template <std::ranges::range Range>
+        void addFramesMT(Range src, size_t frames) {
+            meter.addFramesMT(src, frames);
         }
 
         /** @brief Get global integrated loudness in LUFS.
@@ -155,6 +145,15 @@ namespace loudness {
             return meter.loudnessGlobal();
         }
 
+        /** @brief Get global integrated loudness in LUFS without relative gating
+         *
+         *  @return integrated loudness in LUFS. -HUGE_VAL if result is negative
+         *             infinity.
+         */
+        [[nodiscard]] double loudnessGlobalUngated() const requires ((mode & Mode::EBU_I) == Mode::EBU_I){
+            return meter.loudnessGlobalUngated();
+        }
+
         /** @brief Get global median loudness.
          *
          *  @return integrated loudness in LUFS. -HUGE_VAL if result is negative
@@ -162,6 +161,15 @@ namespace loudness {
          */
         [[nodiscard]] double loudnessGlobalMedian() const requires ((mode & Mode::EBU_I) == Mode::EBU_I){
             return meter.loudnessGlobalMedian();
+        }
+
+        /** @brief Get global median loudness without relative gating.
+         *
+         *  @return integrated loudness in LUFS. -HUGE_VAL if result is negative
+         *             infinity.
+         */
+        [[nodiscard]] double loudnessGlobalMedianUngated() const requires ((mode & Mode::EBU_I) == Mode::EBU_I){
+            return meter.loudnessGlobalMedianUngated();
         }
 
         /** @brief Get momentary loudness (last 400ms) in LUFS.
@@ -189,7 +197,7 @@ namespace loudness {
          *
          *  @param  window window in ms to calculate loudness.
          *  @param  out loudness in LUFS. -HUGE_VAL if result is negative infinity.
-         *  @throws std::invalid_argument if window is larger than supported
+         *  @throws std::domain_error if window is larger than supported
          */
         [[nodiscard]] double loudnessWindow(unsigned long window) const requires ((mode & Mode::EBU_M) == Mode::EBU_M) {
             return meter.loudnessWindow(window);
@@ -211,7 +219,7 @@ namespace loudness {
          *
          *  @param  channel_number channel to analyse
          *  @return maximum sample peak in linear form (1.0 is 0 dBFS)
-         *  @throws std::invalid_argument if channel_number out of range
+         *  @throws std::domain_error if channel_number out of range
          */
         [[nodiscard]] double samplePeak(unsigned int channel_number) const requires ((mode & Mode::SamplePeak) == Mode::SamplePeak){
             return meter.samplePeak(channel_number);
@@ -223,7 +231,7 @@ namespace loudness {
          *
          *  @param  channel_number channel to analyse
          *  @return maximum sample peak in in linear form (1.0 is 0 dBFS)
-         *  @throws std::invalid_argument if channel_number out of range
+         *  @throws std::domain_error if channel_number out of range
          */
         [[nodiscard]] double lastSamplePeak(unsigned int channel_number) const requires ((mode & Mode::SamplePeak) == Mode::SamplePeak) {
             return meter.lastSamplePeak(channel_number);
@@ -243,7 +251,7 @@ namespace loudness {
          *
          *  @param  channel_number channel to analyse
          *  @return maximum true peak in linear form (1.0 is 0 dBTP)
-         *  @throws std::invalid_argument if channel_number out of range
+         *  @throws std::domain_error if channel_number out of range
          */
         [[nodiscard]] double truePeak(unsigned int channel_number) const requires ((mode & Mode::TruePeak) == Mode::TruePeak) {
             return meter.truePeak(channel_number);
@@ -263,7 +271,7 @@ namespace loudness {
          *
          *  @param  channel_number channel to analyse
          *  @return maximum true peak in linear form (1.0 is 0 dBTP)
-         *  @throws std::invalid_argument if channel_number out of range
+         *  @throws std::domain_error if channel_number out of range
          */
         [[nodiscard]] double lastTruePeak(unsigned int channel_number) const requires ((mode & Mode::TruePeak) == Mode::TruePeak) {
             return meter.lastTruePeak(channel_number);
@@ -329,4 +337,4 @@ namespace loudness {
         }
     }
 } // namespace loudness
-#endif /* METER_HPP */
+#endif // LOUDNESS_METER_HPP

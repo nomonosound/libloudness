@@ -1,11 +1,22 @@
-#ifndef DEFINES_HPP
-#define DEFINES_HPP
+#ifndef LOUDNESS_DEFINES_HPP
+#define LOUDNESS_DEFINES_HPP
 
-#include <type_traits>
 #include <cstdint>
+#include <limits>
+#include <type_traits>
 #include <variant>
+#include <stdexcept>
 
 namespace loudness {
+
+    static constexpr int max_channels = 64;
+    static constexpr long min_samplerate = 16;
+    static constexpr long max_samplerate = 2822400;
+
+    /* @warning this is the theoretical max, your system will run out of memory before this.
+    */
+    static constexpr unsigned long max_window_ms = std::numeric_limits<unsigned long>::max() / max_samplerate;
+
     /** \enum Channel
      *  Use these values when setting the channel map with Meter::setChannel().
      *  See definitions in ITU R-REC-BS 1770-4
@@ -65,18 +76,35 @@ namespace loudness {
         Histogram = (1U << 6U)
     };
 
-    [[nodiscard]] constexpr Mode operator& (Mode x, Mode y)
+    [[nodiscard]] constexpr Mode operator& (Mode left, Mode right)
     {
         using utype = std::underlying_type_t<Mode>;
-        return static_cast<Mode>(static_cast<utype>(x) & static_cast<utype>(y));
+        return static_cast<Mode>(static_cast<utype>(left) & static_cast<utype>(right));
     }
 
-    [[nodiscard]] constexpr Mode operator| (Mode x, Mode y)
+    [[nodiscard]] constexpr Mode operator| (Mode left, Mode right)
     {
         using utype = std::underlying_type_t<Mode>;
-        return static_cast<Mode>(static_cast<utype>(x) | static_cast<utype>(y));
+        return static_cast<Mode>(static_cast<utype>(left) | static_cast<utype>(right));
     }
 
-    using DataType = std::variant<const float*, const float**, const double*, const double**, const short*, const short**, const int*, const int**>;
+    template<std::signed_integral T, T min_val, T max_val>
+    class BoundNaturalInteger {
+    public:
+        explicit constexpr BoundNaturalInteger(T value) : value_(value) {
+            if (value < min_val || value > max_val) {
+                throw std::domain_error("Requested value not within allowed range");
+            }
+        }
+        [[nodiscard]] constexpr auto get() const {return value_;}
+    private:
+        std::make_unsigned_t<T> value_;
+    };
+
+    using Samplerate = BoundNaturalInteger<long, min_samplerate, max_samplerate>;
+    using NumChannels = BoundNaturalInteger<int, 1, max_channels>;
+
+
+    using DataType = std::variant<const float*, const float**, const double*, const double**, const int16_t*, const int16_t**, const int32_t*, const int32_t**>;
 } // namespace loudness
-#endif // DEFINES_HPP
+#endif // LOUDNESS_DEFINES_HPP

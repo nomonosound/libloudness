@@ -1,5 +1,5 @@
-#ifndef UTILS_HPP
-#define UTILS_HPP
+#ifndef LOUDNESS_UTILS_HPP
+#define LOUDNESS_UTILS_HPP
 
 #include <algorithm>
 #include <cmath>
@@ -14,13 +14,17 @@
 
 class ScopedFTZ {
 public:
-    ScopedFTZ() : mxcsr_(_mm_getcsr())
+    ScopedFTZ() noexcept: mxcsr_(_mm_getcsr())
     {
         _mm_setcsr(mxcsr_ | _MM_FLUSH_ZERO_ON | _MM_DENORMALS_ZERO_ON);
     }
     ~ScopedFTZ(){
         _mm_setcsr(mxcsr_);
     }
+    ScopedFTZ& operator=(const ScopedFTZ&) = delete;
+    ScopedFTZ& operator=(ScopedFTZ&&) = delete;
+    ScopedFTZ(const ScopedFTZ&) = delete;
+    ScopedFTZ(ScopedFTZ&&) = delete;
 private:
     const unsigned int mxcsr_;
 };
@@ -50,6 +54,7 @@ namespace loudness {
     static constexpr bool safeSizeMul(T nmemb, T size, T* result)
     {
         /* Adapted from OpenBSD reallocarray. */
+        // Sqrt of numeric max
         constexpr T mul_no_overflow = static_cast<T>(1) << sizeof(T) * 4;
         if ((nmemb >= mul_no_overflow || size >= mul_no_overflow) && /**/
             nmemb > 0 && std::numeric_limits<T>::max() / nmemb < size) {
@@ -91,4 +96,4 @@ namespace loudness {
         return medianInPlace(copied);
     }
 } // namespace loudness
-#endif  // UTILS_HPP
+#endif  // LOUDNESS_UTILS_HPP

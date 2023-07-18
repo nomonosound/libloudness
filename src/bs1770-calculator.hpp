@@ -1,5 +1,5 @@
-#ifndef BS1770CALCULATOR_HPP
-#define BS1770CALCULATOR_HPP
+#ifndef LOUDNESS_BS1770_CALCULATOR_HPP
+#define LOUDNESS_BS1770_CALCULATOR_HPP
 
 #include <array>
 #include <cstddef>
@@ -8,7 +8,7 @@
 
 namespace loudness {
     struct ValueCounter {
-        size_t counter;
+        size_t count;
         double sum;
     };
 
@@ -19,9 +19,10 @@ namespace loudness {
         virtual void addShortTermBlock(double energy) = 0;
         virtual bool setMaxHistory(unsigned long /*history_ms*/) noexcept { return false; };
 
-        [[nodiscard]] virtual ValueCounter relativeThreshold() const = 0;
-        [[nodiscard]] virtual ValueCounter gatedLoudness(double relative_threshold) const = 0;
-        [[nodiscard]] virtual double gatedMedianLoudness(double relative_threshold) const = 0;
+        [[nodiscard]] virtual ValueCounter blockCountAndSum() const = 0;
+        [[nodiscard]] virtual ValueCounter loudness(double relative_threshold) const = 0;
+        [[nodiscard]] virtual double medianLoudness(double relative_threshold) const = 0;
+        [[nodiscard]] virtual double ungatedMedianLoudness() const = 0;
     };
 
     class BlockListCalculator : public BS1770Calculator {
@@ -32,9 +33,10 @@ namespace loudness {
         void addShortTermBlock(double energy) override;
         bool setMaxHistory(unsigned long history_ms) noexcept override;
 
-        [[nodiscard]] ValueCounter relativeThreshold() const override;
-        [[nodiscard]] ValueCounter gatedLoudness(double relative_threshold) const override;
-        [[nodiscard]] double gatedMedianLoudness(double relative_threshold) const override;
+        [[nodiscard]] ValueCounter blockCountAndSum() const override;
+        [[nodiscard]] ValueCounter loudness(double relative_threshold) const override;
+        [[nodiscard]] double medianLoudness(double relative_threshold) const override;
+        [[nodiscard]] double ungatedMedianLoudness() const override;
 
         static double loudnessRangeMultiple(const std::vector<const BlockListCalculator*>& block_lists);
 
@@ -55,9 +57,10 @@ namespace loudness {
         void addBlock(double energy) override;
         void addShortTermBlock(double energy) override;
 
-        [[nodiscard]] ValueCounter relativeThreshold() const override;
-        [[nodiscard]] ValueCounter gatedLoudness(double relative_threshold) const override;
-        [[nodiscard]] double gatedMedianLoudness(double relative_threshold) const override;
+        [[nodiscard]] ValueCounter blockCountAndSum() const override;
+        [[nodiscard]] ValueCounter loudness(double relative_threshold) const override;
+        [[nodiscard]] double medianLoudness(double relative_threshold) const override;
+        [[nodiscard]] double ungatedMedianLoudness() const override;
 
         static double loudnessRangeMultiple(const std::vector<const HistogramCalculator*>& histograms);
 
@@ -68,4 +71,4 @@ namespace loudness {
         std::array<unsigned long, HISTOGRAM_SIZE> short_term_block_energy_histogram{};
     };
 } // namespace loudness
-#endif  // BS1770CALCULATOR_HPP
+#endif  // LOUDNESS_BS1770_CALCULATOR_HPP

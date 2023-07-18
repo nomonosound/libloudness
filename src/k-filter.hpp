@@ -1,5 +1,5 @@
-#ifndef KFILTER_HPP
-#define KFILTER_HPP
+#ifndef LOUDNESS_KFILTER_HPP
+#define LOUDNESS_KFILTER_HPP
 
 #include <array>
 #include <vector>
@@ -29,4 +29,4 @@ namespace loudness {
         std::vector<filter_state> v_;
     };
 } // namespace loudness
-#endif  // KFILTER_HPP
+#endif  // LOUDNESS_KFILTER_HPP

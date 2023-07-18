@@ -1,7 +1,7 @@
 /* See COPYING file for copyright and license details. */
 
-#ifndef METER_IMPL_HPP
-#define METER_IMPL_HPP
+#ifndef LOUDNESS_DETAIL_METER_IMPL_HPP
+#define LOUDNESS_DETAIL_METER_IMPL_HPP
 
 
 #include "defines.hpp"
@@ -10,14 +10,9 @@
 #include <vector>
 
 namespace loudness::detail {
-
     class Meter {
     public:
-        static constexpr unsigned int max_channels = 64;
-        static constexpr unsigned long min_samplerate = 16;
-        static constexpr unsigned long max_samplerate = 2822400;
-
-        Meter(unsigned int channels, unsigned long samplerate, Mode mode);
+        Meter(NumChannels channels, Samplerate samplerate, Mode mode);
         ~Meter() noexcept;
         Meter(Meter&& other) noexcept;
         Meter& operator=(Meter&& other) = delete;
@@ -25,23 +20,32 @@ namespace loudness::detail {
         Meter& operator=(const Meter&) = delete;
 
         void setChannel(unsigned int channel_index, Channel value);
-        bool changeParameters(unsigned int channels, unsigned long samplerate);
+        bool changeParameters(NumChannels channels, Samplerate samplerate);
         bool setMaxWindow(unsigned long window_ms);
         bool setMaxHistory(unsigned long history_ms);
 
         void addFrames(DataType src, size_t frames);
+        void addFramesMT(DataType src, size_t frames);
 
-        void addFramesSeq(DataType src, size_t frames);
+        template <std::ranges::range Range>
+        void addFrames(Range src, size_t frames);
 
-        // EBU-R128
+        template <std::ranges::range Range>
+        void addFramesMT(Range src, size_t frames);
+
+        // Tech 3341
         [[nodiscard]] double loudnessGlobal() const;
         [[nodiscard]] double loudnessMomentary() const;
         [[nodiscard]] double loudnessShortterm() const;
-        [[nodiscard]] double loudnessWindow(unsigned long window_ms) const;
 
+        // Tech 3342
         [[nodiscard]] double loudnessRange() const;
 
+        // Other BS.1770 based
+        [[nodiscard]] double loudnessWindow(unsigned long window_ms) const;
+        [[nodiscard]] double loudnessGlobalUngated() const;
         [[nodiscard]] double loudnessGlobalMedian() const;
+        [[nodiscard]] double loudnessGlobalMedianUngated() const;
 
         [[nodiscard]] double samplePeak(unsigned int channel_index) const;
         [[nodiscard]] double lastSamplePeak(unsigned int channel_index) const;
@@ -55,10 +59,57 @@ namespace loudness::detail {
         [[nodiscard]] static double loudnessRangeMultipleBlocks(const std::vector<const Meter*>& meters);
 
     private:
+        const Mode mode_;            /**< The current mode. */
+        unsigned int channels_;      /**< The number of channels. */
+        unsigned long samplerate_;   /**< The sample rate. */
         std::unique_ptr<struct Impl> pimpl; /**< Internal state. */
-        const Mode mode;            /**< The current mode. */
-        unsigned int channels;      /**< The number of channels. */
-        unsigned long samplerate;   /**< The sample rate. */
     };
+
+    /* Ugly template code to convert ranges into pointers */
+    template <typename T>
+    concept HasDataPointer = requires (T t) {
+       *t.data();
+    };
+
+    template <void (Meter::*Func)(DataType, size_t), std::ranges::range Range>
+    void addRange(Meter* obj, Range src, size_t frames) {
+        using T = std::ranges::range_value_t<Range>;
+        if constexpr (std::is_pointer_v<T>){
+            using U = std::add_pointer_t<std::add_const_t<std::remove_pointer_t<T>>>;
+            if constexpr (HasDataPointer<Range> && std::is_const_v<std::remove_pointer_t<T>>){
+                (obj->*Func)(src.data(), frames);
+            } else {
+                std::vector<U> data;
+                for (auto* ptr : src){
+                    data.push_back(ptr);
+                }
+                (obj->*Func)(data.data(), frames);
+            }
+        } else if constexpr (HasDataPointer<T>){
+            using U = std::add_pointer_t<std::add_const_t<std::remove_pointer_t<decltype(src.begin()->data())>>>;
+            std::vector<U> data;
+            for (auto& container : src){
+                data.push_back(container.data());
+            }
+            (obj->*Func)(data.data(), frames);
+        } else {
+            // Add it as interleaved/single channel if possible
+            (obj->*Func)(src.data(), frames);
+        }
+    }
+
+    template<std::ranges::range Range>
+    void Meter::addFrames(Range src, size_t frames)
+    {
+        addRange<&Meter::addFrames, Range>(this, src, frames);
+    }
+
+    template<std::ranges::range Range>
+    void Meter::addFramesMT(Range src, size_t frames)
+    {
+        addRange<&Meter::addFramesMT, Range>(this, src, frames);
+    }
+
+
 } // namespace loudness::detail
-#endif /* METER_IMPL_HPP */
+#endif // LOUDNESS_DETAIL_METER_IMPL_HPP

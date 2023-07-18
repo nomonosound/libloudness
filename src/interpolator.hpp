@@ -1,5 +1,5 @@
-#ifndef INTERPOLATOR_HPP
-#define INTERPOLATOR_HPP
+#ifndef LOUDNESS_INTERPOLATOR_HPP
+#define LOUDNESS_INTERPOLATOR_HPP
 
 #include <cmath>
 #include <numeric>
@@ -91,4 +91,4 @@ namespace loudness {
         chan_data_[chan].peak = peak;
     }
 } // namespace loudness
-#endif  // INTERPOLATOR_HPP
+#endif  // LOUDNESS_INTERPOLATOR_HPP

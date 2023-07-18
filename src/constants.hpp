@@ -1,5 +1,5 @@
-#ifndef CONSTANTS_HPP
-#define CONSTANTS_HPP
+#ifndef LOUDNESS_CONSTANTS_HPP
+#define LOUDNESS_CONSTANTS_HPP
 
 #include "utils.hpp"
 #include <gcem.hpp>
@@ -22,4 +22,4 @@ namespace loudness {
     constexpr int st_block_overlap_ms = shortterm_block_ms / 3;
 } // namespace loudness
 
-#endif // CONSTANTS_HPP
+#endif // LOUDNESS_CONSTANTS_HPP

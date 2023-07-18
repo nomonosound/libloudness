@@ -16,10 +16,10 @@ FetchContent_MakeAvailable(Catch2)
 add_executable(loudness_tests EXCLUDE_FROM_ALL)
 target_sources(loudness_tests
     PRIVATE
-#    test-compare.cpp
-    test-k-filter.cpp
-    test-ebur128.cpp
     test-bs1770-calculator.cpp
+    test-ebur128.cpp
+    test-k-filter.cpp
+    test-meter.cpp
     test-utilities.hpp
 )
 target_link_libraries(loudness_tests PRIVATE Catch2::Catch2WithMain loudness)
