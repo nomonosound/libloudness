@@ -8,9 +8,8 @@
 
 namespace loudness {
     namespace {
-        static constexpr double almost_zero = 0.000001;
-
         auto createFilter(unsigned int taps, unsigned int factor) {
+            static constexpr double almost_zero = 0.000001;
             std::vector<std::vector<double>> filter(factor - 1);
             for (unsigned int j = taps; j-- > 0;) {
                 const unsigned int f = j % factor;
@@ -31,7 +30,8 @@ namespace loudness {
             }
             return filter;
         }
-    }
+    } // namespace
+
     Interpolator::Interpolator(unsigned int taps, unsigned int factor, unsigned int channels)
         : filter_(createFilter(taps, factor)),
           chan_data_(channels, {.buffer = std::vector<float>((taps - 1) / factor), .index = 0, .peak = 0.0})

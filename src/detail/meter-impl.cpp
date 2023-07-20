@@ -81,7 +81,7 @@ namespace loudness::detail {
         std::optional<Interpolator> interpolator;
         std::unique_ptr<BS1770Calculator> bs1770_calculator;
 
-        BS::thread_pool pool;
+        std::optional<BS::thread_pool> pool;
         Mode mode;
     };
 
@@ -89,41 +89,41 @@ namespace loudness::detail {
     {
         channel_map.resize(num_channels);
         if (num_channels == 4) {
-            channel_map[0] = Channel::LEFT;
-            channel_map[1] = Channel::RIGHT;
-            channel_map[2] = Channel::LEFT_SURROUND;
-            channel_map[3] = Channel::RIGHT_SURROUND;
+            channel_map[0] = Channel::Left;
+            channel_map[1] = Channel::Right;
+            channel_map[2] = Channel::LeftSurround;
+            channel_map[3] = Channel::RightSurround;
         }
         else if (num_channels == 5) {
-            channel_map[0] = Channel::LEFT;
-            channel_map[1] = Channel::RIGHT;
-            channel_map[2] = Channel::CENTER;
-            channel_map[3] = Channel::LEFT_SURROUND;
-            channel_map[4] = Channel::RIGHT_SURROUND;
+            channel_map[0] = Channel::Left;
+            channel_map[1] = Channel::Right;
+            channel_map[2] = Channel::Center;
+            channel_map[3] = Channel::LeftSurround;
+            channel_map[4] = Channel::RightSurround;
         }
         else {
             for (size_t i = 0; i < num_channels; ++i) {
                 switch (i) {
                 case 0:
-                    channel_map[i] = Channel::LEFT;
+                    channel_map[i] = Channel::Left;
                     break;
                 case 1:
-                    channel_map[i] = Channel::RIGHT;
+                    channel_map[i] = Channel::Right;
                     break;
                 case 2:
-                    channel_map[i] = Channel::CENTER;
+                    channel_map[i] = Channel::Center;
                     break;
                 case 3:
-                    channel_map[i] = Channel::UNUSED;
+                    channel_map[i] = Channel::Unused;
                     break;
                 case 4:
-                    channel_map[i] = Channel::LEFT_SURROUND;
+                    channel_map[i] = Channel::LeftSurround;
                     break;
                 case 5:
-                    channel_map[i] = Channel::RIGHT_SURROUND;
+                    channel_map[i] = Channel::RightSurround;
                     break;
                 default:
-                    channel_map[i] = Channel::UNUSED;
+                    channel_map[i] = Channel::Unused;
                     break;
                 }
             }
@@ -139,10 +139,10 @@ namespace loudness::detail {
             case Channel::Mp110: case Channel::Mm110: case Channel::Mp060: case Channel::Mm060: case Channel::Mp090: case  Channel::Mm090:
                 channel_weight.push_back(1.41);
                 break;
-            case Channel::DUAL_MONO:
+            case Channel::DualMono:
                 channel_weight.push_back(2.0);
                 break;
-            case Channel::UNUSED:
+            case Channel::Unused:
                 channel_weight.push_back(0.0);
                 break;
             [[likely]] default:
@@ -186,12 +186,17 @@ namespace loudness::detail {
     {
     }
 
+    void Meter::reset()
+    {
+        pimpl = std::make_unique<Impl>(channels_, samplerate_, mode_);
+    }
+
     Meter::~Meter() noexcept = default;
     Meter::Meter(Meter&& other) noexcept = default;
 
     Impl::Impl(unsigned int channels, unsigned long samplerate, Mode mode)
         : calculated_subblocks(channels, std::deque<double>()),
-          samples_in_100ms((samplerate + 5) / 10),
+          samples_in_100ms(roundedDivide<10>(samplerate)),
           /* the first block needs 400ms of audio data */
           needed_frames(samples_in_100ms * m_subblocks),
           k_filter(static_cast<double>(samplerate), channels),
@@ -232,7 +237,7 @@ namespace loudness::detail {
         // Apply filter
         const size_t channels = audio_data.size();
         for (size_t c = 0; c < channels; ++c) {
-            if (channel_map[c] == Channel::UNUSED) {
+            if (channel_map[c] == Channel::Unused) {
                 continue;
             }
             double* audio = audio_data[c].data() + audio_data_index;
@@ -285,7 +290,7 @@ namespace loudness::detail {
     {
         double sum = 0.0;
         for (size_t c = 0; c < channel_map.size(); ++c) {
-            if (channel_map[c] == Channel::UNUSED) {
+            if (channel_map[c] == Channel::Unused) {
                 continue;
             }
             double channel_sum = 0.0;
@@ -357,7 +362,7 @@ namespace loudness::detail {
     {
         for (;calculated_audio_index + samples_in_100ms <= audio_data_index; calculated_audio_index += samples_in_100ms){
             for (size_t c = 0; c < channel_map.size(); ++c) {
-                if (channel_map[c] == Channel::UNUSED){
+                if (channel_map[c] == Channel::Unused){
                     continue;
                 }
                 calculated_subblocks[c].push_back(
@@ -374,7 +379,7 @@ namespace loudness::detail {
     {
         double sum = 0.0;
         for (size_t c = 0; c < channel_weight.size(); ++c) {
-            if (channel_map[c] != Channel::UNUSED){
+            if (channel_map[c] != Channel::Unused){
                 sum += channel_weight[c] * std::reduce(calculated_subblocks[c].crbegin(), calculated_subblocks[c].crbegin() + m_subblocks, 0.0);
             }
         }
@@ -388,7 +393,7 @@ namespace loudness::detail {
     {
         double sum = 0.0;
         for (size_t c = 0; c < channel_weight.size(); ++c) {
-            if (channel_map[c] != Channel::UNUSED){
+            if (channel_map[c] != Channel::Unused){
                 sum += channel_weight[c] * std::reduce(calculated_subblocks[c].crbegin(), calculated_subblocks[c].crbegin() + st_subblocks, 0.0);
             }
         }
@@ -400,11 +405,8 @@ namespace loudness::detail {
 
     void Meter::setChannel(unsigned int channel_index, Channel value)
     {
-        if (channel_index > channels_) {
-            throw std::invalid_argument("Requested channels larger than maximum");
-        }
-        if (value == Channel::DUAL_MONO && (channels_ != 1 || channel_index != 0)) {
-            throw std::invalid_argument("Channel::DUAL_MONO only works with mono files!");
+        if (channel_index >= channels_) {
+            throw std::out_of_range("Invalid channel index");
         }
         if (pimpl->channel_map[channel_index] != value){
             pimpl->channel_map[channel_index] = value;
@@ -429,7 +431,7 @@ namespace loudness::detail {
         }
         if (samplerate.get() != samplerate_) {
             samplerate_ = samplerate.get();
-            pimpl->samples_in_100ms = (samplerate_ + 5) / 10;
+            pimpl->samples_in_100ms = roundedDivide<10>(samplerate_);
         }
 
         /* If we're here, either samplerate or channels
@@ -481,9 +483,14 @@ namespace loudness::detail {
 
     void Meter::addFramesMT(DataType src, size_t frames)
     {
+        /* Lazely spin up threads when needed. */
+        if (not pimpl->pool.has_value()){
+            pimpl->pool.emplace();
+        }
+
         if (pimpl->interpolator.has_value()) {
             for (size_t c = 0; c < channels_; ++c){
-                pimpl->pool.push_task([this, c, src, frames] {
+                pimpl->pool->push_task([this, c, src, frames] {
                     const ScopedFTZ guard;
                     std::visit([this, c, frames](auto&& src){
                         pimpl->interpolator->process(src, frames, c);
@@ -495,18 +502,18 @@ namespace loudness::detail {
             }
         }
         if ((mode_ & Mode::EBU_M) == Mode::EBU_M){
-            pimpl->pool.push_task(&Impl::addFramesLoudness, pimpl.get(), src, frames);
+            pimpl->pool->push_task(&Impl::addFramesLoudness, pimpl.get(), src, frames);
         }
-        // Sample peak so lightweight it is never worth parallelizing channels
+        // Sample peak is so lightweight it is never worth parallelizing channels
         if ((mode_ & Mode::SamplePeak) == Mode::SamplePeak) {
-            pimpl->pool.push_task([this, src, frames]{
+            pimpl->pool->push_task([this, src, frames]{
                 std::visit([this, frames](auto&& src){
                     pimpl->findSamplePeaks(src, frames);
                 }, src);
             });
         }
 
-        pimpl->pool.wait_for_tasks();
+        pimpl->pool->wait_for_tasks();
     }
 
 
@@ -627,7 +634,7 @@ namespace loudness::detail {
     double Meter::samplePeak(unsigned int channel_index) const
     {
         if (channel_index >= channels_) {
-            throw std::invalid_argument("Invalid channel index");
+            throw std::out_of_range("Invalid channel index");
         }
 
         return pimpl->sample_peak[channel_index];
@@ -636,7 +643,7 @@ namespace loudness::detail {
     double Meter::lastSamplePeak(unsigned int channel_index) const
     {
         if (channel_index >= channels_) {
-            throw std::invalid_argument("Invalid channel index");
+            throw std::out_of_range("Invalid channel index");
         }
 
         return pimpl->last_sample_peak[channel_index];
@@ -645,7 +652,7 @@ namespace loudness::detail {
     double Meter::truePeak(unsigned int channel_index) const
     {
         if (channel_index >= channels_) {
-            throw std::invalid_argument("Invalid channel index");
+            throw std::out_of_range("Invalid channel index");
         }
 
         return std::max(pimpl->true_peak[channel_index], pimpl->sample_peak[channel_index]);
@@ -654,7 +661,7 @@ namespace loudness::detail {
     double Meter::lastTruePeak(unsigned int channel_index) const
     {
         if (channel_index >= channels_) {
-            throw std::invalid_argument("Invalid channel index");
+            throw std::out_of_range("Invalid channel index");
         }
         if (pimpl->interpolator.has_value()){
             return std::max(static_cast<double>(pimpl->interpolator->peak(channel_index)),

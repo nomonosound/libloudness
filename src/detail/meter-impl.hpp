@@ -19,6 +19,8 @@ namespace loudness::detail {
         Meter(const Meter&) = delete;
         Meter& operator=(const Meter&) = delete;
 
+        void reset();
+
         void setChannel(unsigned int channel_index, Channel value);
         bool changeParameters(NumChannels channels, Samplerate samplerate);
         bool setMaxWindow(unsigned long window_ms);
@@ -59,7 +61,7 @@ namespace loudness::detail {
         [[nodiscard]] static double loudnessRangeMultipleBlocks(const std::vector<const Meter*>& meters);
 
     private:
-        const Mode mode_;            /**< The current mode. */
+        const Mode mode_;            /**< The mode of the meter */
         unsigned int channels_;      /**< The number of channels. */
         unsigned long samplerate_;   /**< The sample rate. */
         std::unique_ptr<struct Impl> pimpl; /**< Internal state. */

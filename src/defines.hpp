@@ -22,18 +22,18 @@ namespace loudness {
      *  See definitions in ITU R-REC-BS 1770-4
      */
     enum class Channel : uint_fast8_t {
-        UNUSED = 0,         /**< unused channel (for example LFE channel) */
-        LEFT = 1,           /**<           */
+        Unused = 0,         /**< Unused channel (for example LFE channel) */
+        Left = 1,           /**<           */
         Mp030 = 1,          /**< ITU M+030 */
-        RIGHT = 2,          /**<           */
+        Right = 2,          /**<           */
         Mm030 = 2,          /**< ITU M-030 */
-        CENTER = 3,         /**<           */
+        Center = 3,         /**<           */
         Mp000 = 3,          /**< ITU M+000 */
-        LEFT_SURROUND = 4,  /**<           */
+        LeftSurround = 4,   /**<           */
         Mp110 = 4,          /**< ITU M+110 */
-        RIGHT_SURROUND = 5, /**<           */
+        RightSurround = 5,  /**<           */
         Mm110 = 5,          /**< ITU M-110 */
-        DUAL_MONO,          /**< a channel that is counted twice */
+        DualMono,           /**< a channel that is counted twice */
         MpSC,               /**< ITU M+SC  */
         MmSC,               /**< ITU M-SC  */
         Mp060,              /**< ITU M+060 */

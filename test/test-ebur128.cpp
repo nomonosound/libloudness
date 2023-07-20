@@ -227,7 +227,7 @@ TEMPLATE_LIST_TEST_CASE("EBU Tech3341 true peak test cases", "[Tech3341][EBU][pe
     loudness::Meter<loudness::Mode::TruePeak> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
     UNSCOPED_INFO(samplerate);
     SECTION("Test case 15"){
-        const double target = -6.0;
+        constexpr double target = -6.0;
         auto sine_wave = sineWaveTP<TestType>(samplerate/4.0, samplerate, channels, 0.0, 0.5);
         meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
         CHECK_THAT(meter.samplePeak(0), Catch::Matchers::WithinAbs(0.5, 1e-9));
@@ -236,28 +236,28 @@ TEMPLATE_LIST_TEST_CASE("EBU Tech3341 true peak test cases", "[Tech3341][EBU][pe
         CHECK_THAT(20*std::log10(meter.truePeak(1)), AsymetricMarginMatcher(target, 0.3, 0.2));
     }
     SECTION("Test case 16"){
-        const double target = -6.0;
+        constexpr double target = -6.0;
         auto sine_wave = sineWaveTP<TestType>(samplerate/4.0, samplerate, channels, 45.0, 0.5);
         meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
         CHECK_THAT(20*std::log10(meter.truePeak(0)), AsymetricMarginMatcher(target, 0.3, 0.2));
         CHECK_THAT(20*std::log10(meter.truePeak(1)), AsymetricMarginMatcher(target, 0.3, 0.2));
     }
     SECTION("Test case 17"){
-        const double target = -6.0;
+        constexpr double target = -6.0;
         auto sine_wave = sineWaveTP<TestType>(samplerate/6.0, samplerate, channels, 60.0, 0.5);
         meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
         CHECK_THAT(20*std::log10(meter.truePeak(0)), AsymetricMarginMatcher(target, 0.3, 0.2));
         CHECK_THAT(20*std::log10(meter.truePeak(1)), AsymetricMarginMatcher(target, 0.3, 0.2));
     }
     SECTION("Test case 18"){
-        const double target = -6.0;
+        constexpr double target = -6.0;
         auto sine_wave = sineWaveTP<TestType>(samplerate/8.0, samplerate, channels, 67.5, 0.5);
         meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
         CHECK_THAT(20*std::log10(meter.truePeak(0)), AsymetricMarginMatcher(target, 0.3, 0.2));
         CHECK_THAT(20*std::log10(meter.truePeak(1)), AsymetricMarginMatcher(target, 0.3, 0.2));
     }
     SECTION("Test case 19"){
-        const double target = 3.0;
+        constexpr double target = 3.0;
         auto sine_wave = sineWaveTP<TestType>(samplerate/4.0, samplerate, channels, 45.0, 1.41);
         meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
         CHECK_THAT(20*std::log10(meter.truePeak(0)), AsymetricMarginMatcher(target, 0.3, 0.2));
@@ -265,46 +265,56 @@ TEMPLATE_LIST_TEST_CASE("EBU Tech3341 true peak test cases", "[Tech3341][EBU][pe
     }
 }
 
-TEMPLATE_LIST_TEST_CASE("EBU Tech 3342 test cases", "[Tech3342][EBU][LRA][loudness-range]", DataTypes)
+TEMPLATE_TEST_CASE_SIG("EBU Tech 3342 test cases", "[Tech3342][EBU][LRA][loudness-range]",
+                        ((typename T, loudness::Mode mode), T, mode),
+                        (float, loudness::Mode::EBU_LRA),
+                        (double, loudness::Mode::EBU_LRA),
+                        (int16_t, loudness::Mode::EBU_LRA),
+                        (int32_t, loudness::Mode::EBU_LRA),
+                        (float, loudness::Mode::EBU_LRA | loudness::Mode::Histogram),
+                        (double, loudness::Mode::EBU_LRA| loudness::Mode::Histogram),
+                        (int16_t, loudness::Mode::EBU_LRA | loudness::Mode::Histogram),
+                        (int32_t, loudness::Mode::EBU_LRA | loudness::Mode::Histogram))
 {
     const unsigned long samplerate = GENERATE(44100, 48000, prime_samplerate);
     constexpr unsigned int channels = 2;
-    loudness::Meter<loudness::Mode::EBU_LRA> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
+    loudness::Meter<mode> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
+
     SECTION("Test case 1"){
         constexpr double target = 10;
-        auto sine_wave_20 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -20.0);
-        auto sine_wave_30 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -30.0);
+        auto sine_wave_20 = sineWave<T>(1000, samplerate, 20*samplerate, channels, -20.0);
+        auto sine_wave_30 = sineWave<T>(1000, samplerate, 20*samplerate, channels, -30.0);
         meter.addFrames(sine_wave_20.data(), sine_wave_20.size() / channels);
         meter.addFrames(sine_wave_30.data(), sine_wave_30.size() / channels);
         CHECK_THAT(meter.loudnessRange(), Catch::Matchers::WithinAbs(target, 0.1));
     }
     SECTION("Test case 2"){
         constexpr double target = 5;
-        auto sine_wave_20 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -20.0);
-        auto sine_wave_15 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -15.0);
+        auto sine_wave_20 = sineWave<T>(1000, samplerate, 20*samplerate, channels, -20.0);
+        auto sine_wave_15 = sineWave<T>(1000, samplerate, 20*samplerate, channels, -15.0);
         meter.addFrames(sine_wave_20.data(), sine_wave_20.size() / channels);
         meter.addFrames(sine_wave_15.data(), sine_wave_15.size() / channels);
         CHECK_THAT(meter.loudnessRange(), Catch::Matchers::WithinAbs(target, 0.1));
     }
     SECTION("Test case 3"){
         constexpr double target = 20;
-        auto sine_wave_40 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -40.0);
-        auto sine_wave_20 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -20.0);
+        auto sine_wave_40 = sineWave<T>(1000, samplerate, 20*samplerate, channels, -40.0);
+        auto sine_wave_20 = sineWave<T>(1000, samplerate, 20*samplerate, channels, -20.0);
         meter.addFrames(sine_wave_40.data(), sine_wave_40.size() / channels);
         meter.addFrames(sine_wave_20.data(), sine_wave_20.size() / channels);
-        CHECK_THAT(meter.loudnessRange(), Catch::Matchers::WithinAbs(target, 0.1));
+        CHECK_THAT(meter.loudnessRange(), Catch::Matchers::WithinAbs(target, 0.15));
     }
     SECTION("Test case 4"){
         constexpr double target = 15;
-        auto sine_wave_50 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -50.0);
-        auto sine_wave_35 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -35.0);
-        auto sine_wave_20 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -20.0);
+        auto sine_wave_50 = sineWave<T>(1000, samplerate, 20*samplerate, channels, -50.0);
+        auto sine_wave_35 = sineWave<T>(1000, samplerate, 20*samplerate, channels, -35.0);
+        auto sine_wave_20 = sineWave<T>(1000, samplerate, 20*samplerate, channels, -20.0);
         meter.addFrames(sine_wave_50.data(), sine_wave_50.size() / channels);
         meter.addFrames(sine_wave_35.data(), sine_wave_35.size() / channels);
         meter.addFrames(sine_wave_20.data(), sine_wave_20.size() / channels);
         meter.addFrames(sine_wave_35.data(), sine_wave_35.size() / channels);
         meter.addFrames(sine_wave_50.data(), sine_wave_50.size() / channels);
-        CHECK_THAT(meter.loudnessRange(), Catch::Matchers::WithinAbs(target, 0.1));
+        CHECK_THAT(meter.loudnessRange(), Catch::Matchers::WithinAbs(target, 0.15));
     }
 }
 

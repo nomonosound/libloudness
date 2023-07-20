@@ -95,5 +95,19 @@ namespace loudness {
         std::ranges::copy(range, std::back_inserter(copied));
         return medianInPlace(copied);
     }
+
+    template <unsigned div, std::integral T>
+        requires (div % 2 == 0)
+    constexpr T roundedDivide(T number) {
+        if constexpr (std::unsigned_integral<T>){
+            return (number + div / 2) / div;
+        } else {
+            if (number >= 0){
+                return (number + div / 2) / div;
+            } else {
+                return (number - div / 2) / div;
+            }
+        }
+    }
 } // namespace loudness
 #endif  // LOUDNESS_UTILS_HPP

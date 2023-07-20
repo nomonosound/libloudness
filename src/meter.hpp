@@ -20,6 +20,8 @@ namespace loudness {
     public:
         /** @brief Initialize library state.
          *
+         *  @note NumChannels and Samplerate constructor throw is values out of range
+         *
          *  @tparam mode       A mode bitmap from the Mode enum, decides capabilities of the meter
          *  @param  channels   the number of channels.
          *  @param  samplerate the sample rate.
@@ -27,33 +29,42 @@ namespace loudness {
         Meter(NumChannels channels, Samplerate samplerate) : meter{channels, samplerate, mode}{
         }
 
+        /** @brief Reset meter to initial state, clearing all recorded data
+         *
+         */
+        void reset() {
+            meter.reset();
+        }
+
         /** @brief Set channel type.
          *
          *  The default is:
-         *  - 0 -> Channel::LEFT
-         *  - 1 -> Channel::RIGHT
-         *  - 2 -> Channel::CENTER
-         *  - 3 -> Channel::UNUSED
-         *  - 4 -> Channel::LEFT_SURROUND
-         *  - 5 -> Channel::RIGHT_SURROUND
+         *  - 0 -> Channel::Left
+         *  - 1 -> Channel::Right
+         *  - 2 -> Channel::Center
+         *  - 3 -> Channel::Unused
+         *  - 4 -> Channel::LeftSurround
+         *  - 5 -> Channel::RightSurround
          *
          *  @param channel_number zero based channel index.
-         *  @param value channel type from the "channel" enum.
-         *  @throws std::domain_error if channel_number out of range or value invalid
+         *  @param value channel type from the Channel enum.
+         *  @throws std::out_of_range if channel_number is out of range
          */
-        void setChannel(unsigned int channel_number, Channel value) {
+        void setChannel(unsigned int channel_number, Channel value) requires ((mode & Mode::EBU_M) == Mode::EBU_M){
             meter.setChannel(channel_number, value);
         }
 
         /** @brief Change library parameters.
          *
-         *  Note that the channel map will be reset when setting a different number of
-         *  channels. The current unfinished block will be lost.
+         *  @warning The channel map will be reset when setting a different number of
+         *  channels. The current unfinished audio block will be lost.
+         *
+         *  @note NumChannels and Samplerate are responsible for input bounds, and will
+         *  throw in their constructors.
          *
          *  @param  channels   new number of channels.
          *  @param  samplerate new sample rate.
          *  @return bool if parameters were changed or not
-         *  @throws std::domain_error if channels or samplerate are larger than supported
          */
         bool changeParameters(NumChannels channels, Samplerate samplerate) {
             return meter.changeParameters(channels, samplerate);
@@ -69,7 +80,7 @@ namespace loudness {
          *
          *  @param  window duration of the window in ms.
          *  @return bool if window duration was changed or not
-         *  @throws std::domain_error if window is too large
+         *  @throws std::domain_error if window is larger than theoretically supported
          */
         bool setMaxWindow(unsigned long window) requires ((mode & Mode::EBU_M) == Mode::EBU_M){
             return meter.setMaxWindow(window);
@@ -84,7 +95,7 @@ namespace loudness {
          *  Mode::Histogram is not set.
          *
          *  Default is ULONG_MAX (at least ~50 days).
-         *  Minimum is 3000ms for EBU_LRA and 400ms for EBU_M.
+         *  Clamped to a minimum of 3000ms for EBU_LRA and 400ms for EBU_M.
          *
          *  @param  history duration of history in ms.
          *  @return bool if history duration was changed or not
@@ -197,7 +208,7 @@ namespace loudness {
          *
          *  @param  window window in ms to calculate loudness.
          *  @param  out loudness in LUFS. -HUGE_VAL if result is negative infinity.
-         *  @throws std::domain_error if window is larger than supported
+         *  @throws std::domain_error if window is larger than currently configured.
          */
         [[nodiscard]] double loudnessWindow(unsigned long window) const requires ((mode & Mode::EBU_M) == Mode::EBU_M) {
             return meter.loudnessWindow(window);
@@ -219,7 +230,7 @@ namespace loudness {
          *
          *  @param  channel_number channel to analyse
          *  @return maximum sample peak in linear form (1.0 is 0 dBFS)
-         *  @throws std::domain_error if channel_number out of range
+         *  @throws std::out_of_range if channel_number out of range
          */
         [[nodiscard]] double samplePeak(unsigned int channel_number) const requires ((mode & Mode::SamplePeak) == Mode::SamplePeak){
             return meter.samplePeak(channel_number);
@@ -231,7 +242,7 @@ namespace loudness {
          *
          *  @param  channel_number channel to analyse
          *  @return maximum sample peak in in linear form (1.0 is 0 dBFS)
-         *  @throws std::domain_error if channel_number out of range
+         *  @throws std::out_of_range if channel_number out of range
          */
         [[nodiscard]] double lastSamplePeak(unsigned int channel_number) const requires ((mode & Mode::SamplePeak) == Mode::SamplePeak) {
             return meter.lastSamplePeak(channel_number);
@@ -251,7 +262,7 @@ namespace loudness {
          *
          *  @param  channel_number channel to analyse
          *  @return maximum true peak in linear form (1.0 is 0 dBTP)
-         *  @throws std::domain_error if channel_number out of range
+         *  @throws std::out_of_range if channel_number out of range
          */
         [[nodiscard]] double truePeak(unsigned int channel_number) const requires ((mode & Mode::TruePeak) == Mode::TruePeak) {
             return meter.truePeak(channel_number);
@@ -271,7 +282,7 @@ namespace loudness {
          *
          *  @param  channel_number channel to analyse
          *  @return maximum true peak in linear form (1.0 is 0 dBTP)
-         *  @throws std::domain_error if channel_number out of range
+         *  @throws std::out_of_range if channel_number out of range
          */
         [[nodiscard]] double lastTruePeak(unsigned int channel_number) const requires ((mode & Mode::TruePeak) == Mode::TruePeak) {
             return meter.lastTruePeak(channel_number);

@@ -83,6 +83,18 @@ auto sineWave(double frequency, double samplerate, long num_samples, unsigned in
     return sineWave<T>(frequency, samplerate, num_samples, channels, dbFSs);
 }
 
+template<typename T>
+auto deinterleave(const std::vector<T> data, int num_channels) -> std::vector<std::vector<T>> {
+    const long num_samples = data.size() / num_channels;
+    std::vector<std::vector<T>> channels(num_channels, std::vector<T>(num_samples));
+    for (long i = 0; i < num_samples; ++i){
+        for (int c = 0; c < num_channels; ++c){
+            channels[c][i] = data[i*num_channels + c];
+        }
+    }
+    return channels;
+}
+
 class  AsymetricMarginMatcher final : public Catch::Matchers::MatcherGenericBase {
 public:
     AsymetricMarginMatcher(double target, double lower_margin, double upper_margin)
