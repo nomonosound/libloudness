@@ -238,8 +238,8 @@ namespace loudness::detail {
             double* audio = audio_data[c].data() + audio_data_index;
             if constexpr (std::is_pointer_v<T>){
                 std::transform(src[c] + offset, src[c] + offset + frames, audio,[this, c](auto val){
-                    val = k_filter.apply(static_cast<double>(val) / getScalingFactor<std::remove_pointer_t<T>>(), c);
-                    return val * val;
+                    double filtered = k_filter.apply(static_cast<double>(val) / getScalingFactor<std::remove_pointer_t<T>>(), c);
+                    return filtered * filtered;
                 });
             } else {
                 for (size_t i = 0; i < frames; ++i) {

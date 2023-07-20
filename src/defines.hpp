@@ -91,6 +91,8 @@ namespace loudness {
     template<std::signed_integral T, T min_val, T max_val>
     class BoundNaturalInteger {
     public:
+        static constexpr T min() {return min_val;}
+        static constexpr T max() {return max_val;}
         explicit constexpr BoundNaturalInteger(T value) : value_(value) {
             if (value < min_val || value > max_val) {
                 throw std::domain_error("Requested value not within allowed range");
@@ -105,6 +107,6 @@ namespace loudness {
     using NumChannels = BoundNaturalInteger<int, 1, max_channels>;
 
 
-    using DataType = std::variant<const float*, const float**, const double*, const double**, const int16_t*, const int16_t**, const int32_t*, const int32_t**>;
+    using DataType = std::variant<const float*, const float* const*, const double*, const double* const*, const int16_t*, const int16_t* const*, const int32_t*, const int32_t* const*>;
 } // namespace loudness
 #endif // LOUDNESS_DEFINES_HPP

@@ -6,19 +6,26 @@
 #include <cmath>
 #include <vector>
 
+#include "utils.hpp"
+
+constexpr unsigned long prime_samplerate = 69313;
+using DataTypes = std::tuple<float, double, int16_t, int32_t>;
+
 inline double dbFSToLinear(double dbFS) {
     return std::pow(10, dbFS / 20.0);
 }
+
 template<typename T>
 auto sineWaveTP(double frequency, double samplerate, unsigned int channels, double phase, double scale) -> std::vector<T> {
+    scale *= loudness::getScalingFactor<T>();
     const long num_samples = std::lround(2*samplerate);
     const double factor = 2 * std::numbers::pi * frequency / samplerate;
-    const double offset = phase / 360.0 * frequency;
+    const double offset = phase * std::numbers::pi / 180.0;
     std::vector<T> output;
     output.reserve(num_samples*channels);
     for (long i = 0; i < num_samples; ++i){
         for (unsigned int c = 0; c < channels; ++c){
-            output.push_back(scale*std::sin(static_cast<T>(i*factor + offset)));
+            output.push_back(scale * std::sin(i*factor + offset));
         }
     }
     const long samples_10_ms = std::lround(samplerate/100);
@@ -36,11 +43,11 @@ template<typename T>
 auto sineWaveChannels(double frequency, double samplerate, long num_samples, unsigned int channels, const std::vector<double>& dbFS) -> std::vector<std::vector<T>>{
     assert (dbFS.size() == channels);
     std::vector<double> scale(channels);
-    std::transform(dbFS.begin(), dbFS.end(), scale.begin(), [](auto val){return dbFSToLinear(val);});
+    std::transform(dbFS.begin(), dbFS.end(), scale.begin(), [](auto val){return dbFSToLinear(val) * loudness::getScalingFactor<T>();;});
     const double factor = 2 * std::numbers::pi * frequency / samplerate;
     std::vector<std::vector<T>> output(channels, std::vector<T>(num_samples));
     for (long i = 0; i < num_samples; ++i){
-        auto val = std::sin(static_cast<T>(i*factor));
+        auto val = std::sin(i*factor);
         for (unsigned int c = 0; c < channels; ++c){
             output[c][i] = scale[c]*val;
         }
@@ -58,13 +65,13 @@ template<typename T>
 auto sineWave(double frequency, double samplerate, long num_samples, unsigned int channels, const std::vector<double>& dbFS) -> std::vector<T> {
     assert (dbFS.size() == channels);
     std::vector<double> scale(channels);
-    std::transform(dbFS.begin(), dbFS.end(), scale.begin(), [](auto val){return dbFSToLinear(val);});
+    std::transform(dbFS.begin(), dbFS.end(), scale.begin(), [](auto val){return dbFSToLinear(val) * loudness::getScalingFactor<T>();});
     const double factor = 2 * std::numbers::pi * frequency / samplerate;
     std::vector<T> output;
     output.reserve(num_samples*channels);
     for (long i = 0; i < num_samples; ++i){
         for (unsigned int c = 0; c < channels; ++c){
-            output.push_back(scale[c]*std::sin(static_cast<T>(i*factor)));
+            output.push_back(scale[c]*std::sin(i*factor));
         }
     }
     return output;

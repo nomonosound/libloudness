@@ -11,23 +11,25 @@
 
 #include <sndfile.h>
 
-constexpr unsigned long prime_samplerate = 69313;
-
-TEMPLATE_TEST_CASE("EBU Tech3341 I-Mode test cases", "[Tech3341][EBU][integrated][median]",
-                   (loudness::Meter<loudness::Mode::EBU_I | loudness::Mode::EBU_S>),
-                   (loudness::Meter<loudness::Mode::EBU_I | loudness::Mode::EBU_S | loudness::Mode::Histogram>)) {
-    constexpr auto samplerate = 48000;
+TEMPLATE_TEST_CASE_SIG("EBU Tech3341 I-Mode test cases", "[Tech3341][EBU][integrated][median]",
+                   ((typename T, loudness::Mode mode), T, mode),
+                   (float, loudness::Mode::EBU_I | loudness::Mode::EBU_S),
+                   (double, loudness::Mode::EBU_I | loudness::Mode::EBU_S),
+                   (int16_t, loudness::Mode::EBU_I | loudness::Mode::EBU_S),
+                   (int32_t, loudness::Mode::EBU_I | loudness::Mode::EBU_S),
+                   (float, loudness::Mode::EBU_I | loudness::Mode::EBU_S | loudness::Mode::Histogram),
+                   (double, loudness::Mode::EBU_I | loudness::Mode::EBU_S | loudness::Mode::Histogram),
+                   (int16_t, loudness::Mode::EBU_I | loudness::Mode::EBU_S | loudness::Mode::Histogram),
+                   (int32_t, loudness::Mode::EBU_I | loudness::Mode::EBU_S | loudness::Mode::Histogram)) {
+    const unsigned long samplerate = GENERATE(44100, 48000, prime_samplerate);
     constexpr auto channels = 2;
-    auto sine_1000hz_60s_23LUFS = sineWave<double>(1000.0, samplerate, 60*samplerate, channels, -23.0);
-    auto sine_1000hz_20s_33LUFS = sineWave<double>(1000.0, samplerate, 60*samplerate, channels, -33.0);
-    auto sine_1000hz_10s_36LUFS = sineWave<double>(1000.0, samplerate, 10*samplerate, channels, -36.0);
-    auto sine_1000hz_10s_72LUFS = sineWave<double>(1000.0, samplerate, 10*samplerate, channels, -72.0);
 
-    TestType meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
+    loudness::Meter<mode> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
     SECTION("Test case 1"){
         constexpr double target = -23.0;
+        const auto sine_wave = sineWave<T>(1000.0, samplerate, 20*samplerate, channels, -23.0);
 
-        meter.addFrames(sine_1000hz_60s_23LUFS.data(), 20*samplerate);
+        meter.addFrames(sine_wave, 20*samplerate);
 
         CHECK_THAT(meter.loudnessGlobal(), Catch::Matchers::WithinAbs(target, 0.1));
         CHECK_THAT(meter.loudnessShortterm(), Catch::Matchers::WithinAbs(target, 0.1));
@@ -38,8 +40,8 @@ TEMPLATE_TEST_CASE("EBU Tech3341 I-Mode test cases", "[Tech3341][EBU][integrated
 
     SECTION("Test case 2"){
         constexpr double target = -33.0;
-
-        meter.addFrames(sine_1000hz_20s_33LUFS.data(), 20*samplerate);
+        const auto sine_wave = sineWave<T>(1000.0, samplerate, 20*samplerate, channels, -33.0);
+        meter.addFrames(sine_wave, 20*samplerate);
 
         CHECK_THAT(meter.loudnessGlobal(), Catch::Matchers::WithinAbs(target, 0.1));
         CHECK_THAT(meter.loudnessShortterm(), Catch::Matchers::WithinAbs(target, 0.1));
@@ -50,6 +52,8 @@ TEMPLATE_TEST_CASE("EBU Tech3341 I-Mode test cases", "[Tech3341][EBU][integrated
 
     SECTION("Test case 3"){
         constexpr double target = -23.0;
+        const auto sine_1000hz_60s_23LUFS = sineWave<T>(1000.0, samplerate, 60*samplerate, channels, -23.0);
+        const auto sine_1000hz_10s_36LUFS = sineWave<T>(1000.0, samplerate, 10*samplerate, channels, -36.0);
 
         meter.addFrames(sine_1000hz_10s_36LUFS.data(), 10*samplerate);
         meter.addFrames(sine_1000hz_60s_23LUFS.data(), 60*samplerate);
@@ -61,6 +65,10 @@ TEMPLATE_TEST_CASE("EBU Tech3341 I-Mode test cases", "[Tech3341][EBU][integrated
     }
     SECTION("Test case 4"){
         constexpr double target = -23.0;
+        const auto sine_1000hz_60s_23LUFS = sineWave<T>(1000.0, samplerate, 60*samplerate, channels, -23.0);
+        const auto sine_1000hz_10s_36LUFS = sineWave<T>(1000.0, samplerate, 10*samplerate, channels, -36.0);
+        const auto sine_1000hz_10s_72LUFS = sineWave<T>(1000.0, samplerate, 10*samplerate, channels, -72.0);
+
         meter.addFrames(sine_1000hz_10s_72LUFS.data(), 10*samplerate);
         meter.addFrames(sine_1000hz_10s_36LUFS.data(), 10*samplerate);
         meter.addFrames(sine_1000hz_60s_23LUFS.data(), 60*samplerate);
@@ -73,8 +81,8 @@ TEMPLATE_TEST_CASE("EBU Tech3341 I-Mode test cases", "[Tech3341][EBU][integrated
     SECTION("Test case 5"){
         constexpr double target = -23.0;
         constexpr double median_target = -26.0;
-        auto sine_wave_26 = sineWave<double>(1000.0, samplerate, 20*samplerate, channels, -26.0);
-        auto sine_wave_20 = sineWave<double>(1000.0, samplerate, std::lround(20.1*samplerate), channels, -20.0);
+        const auto sine_wave_26 = sineWave<T>(1000.0, samplerate, 20*samplerate, channels, -26.0);
+        const auto sine_wave_20 = sineWave<T>(1000.0, samplerate, std::lround(20.1*samplerate), channels, -20.0);
         meter.addFrames(sine_wave_26.data(), 20*samplerate);
         meter.addFrames(sine_wave_20.data(), std::lround(20.1*samplerate));
         meter.addFrames(sine_wave_26.data(), 20*samplerate);
@@ -83,9 +91,9 @@ TEMPLATE_TEST_CASE("EBU Tech3341 I-Mode test cases", "[Tech3341][EBU][integrated
         CHECK_THAT(meter.loudnessGlobalMedian(), Catch::Matchers::WithinAbs(median_target, 0.1));
     }
     SECTION("Test case 6"){
-        TestType meter_5chn{loudness::NumChannels(5), loudness::Samplerate(samplerate)};
+        loudness::Meter<mode> meter_5chn{loudness::NumChannels(5), loudness::Samplerate(samplerate)};
         constexpr double target = -23.0;
-        auto sine_wave = sineWave<double>(1000.0, samplerate, 20*samplerate, 5, {-28.0,-28.0,-24.0, -30.0, -30.0});
+        const auto sine_wave = sineWave<T>(1000.0, samplerate, 20*samplerate, 5, {-28.0,-28.0,-24.0, -30.0, -30.0});
         meter_5chn.addFrames(sine_wave.data(), 20*samplerate);
 
         CHECK_THAT(meter_5chn.loudnessGlobal(), Catch::Matchers::WithinAbs(target, 0.1));
@@ -93,7 +101,7 @@ TEMPLATE_TEST_CASE("EBU Tech3341 I-Mode test cases", "[Tech3341][EBU][integrated
     }
 }
 
-TEST_CASE("EBU Tech3341 S-Mode and M-Mode test cases", "[Tech3341][EBU][shortterm][momentary]") {
+TEMPLATE_LIST_TEST_CASE("EBU Tech3341 S-Mode and M-Mode test cases", "[Tech3341][EBU][shortterm][momentary]", DataTypes) {
     const unsigned long samplerate = GENERATE(44100, 48000, prime_samplerate);
     constexpr unsigned int channels = 2;
     loudness::Meter<loudness::Mode::EBU_S> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
@@ -101,8 +109,8 @@ TEST_CASE("EBU Tech3341 S-Mode and M-Mode test cases", "[Tech3341][EBU][shortter
         const double target = -23.0;
         const long frames_30 = std::lround(1.66*samplerate);
         const long frames_20 = std::lround(1.34*samplerate);
-        auto sine_wave_30 = sineWave<double>(1000.0, samplerate, frames_30, channels, -30.0);
-        auto sine_wave_20 = sineWave<double>(1000.0, samplerate, frames_20, channels, -20.0);
+        auto sine_wave_30 = sineWave<TestType>(1000.0, samplerate, frames_30, channels, -30.0);
+        auto sine_wave_20 = sineWave<TestType>(1000.0, samplerate, frames_20, channels, -20.0);
         for (int i = 0; i < 5; ++i){
             meter.addFrames(sine_wave_20.data(), frames_20);
             if (i > 0){
@@ -114,8 +122,8 @@ TEST_CASE("EBU Tech3341 S-Mode and M-Mode test cases", "[Tech3341][EBU][shortter
     }
     SECTION("Test case 10"){
         const double target = -23.0;
-        auto sine_wave_23 = sineWave<double>(1000.0, samplerate, 3*samplerate, channels, -23.0);
-        auto silence = std::vector<double>(3*channels*samplerate);
+        auto sine_wave_23 = sineWave<TestType>(1000.0, samplerate, 3*samplerate, channels, -23.0);
+        auto silence = std::vector<TestType>(3*channels*samplerate);
         for (int i = 0; i < 20; ++i){
             meter.addFrames(silence.data(), std::lround(0.15*i));
             CHECK(meter.loudnessShortterm() <= Catch::Approx(target).margin(0.1));
@@ -126,10 +134,10 @@ TEST_CASE("EBU Tech3341 S-Mode and M-Mode test cases", "[Tech3341][EBU][shortter
         }
     }
     SECTION("Test case 11"){
-        auto silence = std::vector<double>(3*channels*samplerate);
+        auto silence = std::vector<TestType>(3*channels*samplerate);
         for (int i = 0; i < 20; ++i){
             const double target = -38.0 + i;
-            auto sine_wave = sineWave<double>(1000.0, samplerate, 3*samplerate, channels, target);
+            auto sine_wave = sineWave<TestType>(1000.0, samplerate, 3*samplerate, channels, target);
             meter.addFrames(silence.data(), std::lround(0.15*i));
             CHECK(meter.loudnessShortterm() <= Catch::Approx(target).margin(0.1));
             meter.addFrames(sine_wave.data(), 3*samplerate);
@@ -142,8 +150,8 @@ TEST_CASE("EBU Tech3341 S-Mode and M-Mode test cases", "[Tech3341][EBU][shortter
         const double target = -23.0;
         const long frames_30 = std::lround(0.22*samplerate);
         const long frames_20 = std::lround(0.18*samplerate);
-        auto sine_wave_30 = sineWave<double>(1000.0, samplerate, frames_30, channels, -30.0);
-        auto sine_wave_20 = sineWave<double>(1000.0, samplerate, frames_20, channels, -20.0);
+        auto sine_wave_30 = sineWave<TestType>(1000.0, samplerate, frames_30, channels, -30.0);
+        auto sine_wave_20 = sineWave<TestType>(1000.0, samplerate, frames_20, channels, -20.0);
         for (int i = 0; i < 25; ++i){
             meter.addFrames(sine_wave_20.data(), frames_20);
             if (i > 1){
@@ -157,8 +165,8 @@ TEST_CASE("EBU Tech3341 S-Mode and M-Mode test cases", "[Tech3341][EBU][shortter
     }
     SECTION("Test case 13"){
         const double target = -23.0;
-        auto sine_wave_23 = sineWave<double>(1000.0, samplerate, std::lround(0.4*samplerate), channels, -23.0);
-        auto silence = std::vector<double>(1*channels*samplerate);
+        auto sine_wave_23 = sineWave<TestType>(1000.0, samplerate, std::lround(0.4*samplerate), channels, -23.0);
+        auto silence = std::vector<TestType>(1*channels*samplerate);
         for (int i = 0; i < 20; ++i){
             meter.addFrames(silence.data(), std::lround(0.02*i));
             CHECK(meter.loudnessMomentary() <= Catch::Approx(target).margin(0.1));
@@ -169,10 +177,10 @@ TEST_CASE("EBU Tech3341 S-Mode and M-Mode test cases", "[Tech3341][EBU][shortter
         }
     }
     SECTION("Test case 14"){
-        auto silence = std::vector<double>(1*channels*samplerate);
+        auto silence = std::vector<TestType>(1*channels*samplerate);
         for (int i = 0; i < 20; ++i){
             const double target = -38.0 + i;
-            auto sine_wave = sineWave<double>(1000.0, samplerate, std::lround(0.4*samplerate), channels, target);
+            auto sine_wave = sineWave<TestType>(1000.0, samplerate, std::lround(0.4*samplerate), channels, target);
             meter.addFrames(silence.data(), std::lround(0.02*i));
             CHECK(meter.loudnessMomentary() <= Catch::Approx(target).margin(0.1));
             meter.addFrames(sine_wave.data(), std::lround(0.4*samplerate));
@@ -183,7 +191,7 @@ TEST_CASE("EBU Tech3341 S-Mode and M-Mode test cases", "[Tech3341][EBU][shortter
     }
 }
 
-TEST_CASE("Test non-interleaved data", "[non-interleaved]"){
+TEMPLATE_LIST_TEST_CASE("Test non-interleaved data", "[non-interleaved]", DataTypes){
     const unsigned long samplerate = GENERATE(44100, 48000, prime_samplerate);
     constexpr unsigned int channels = 2;
     loudness::Meter<loudness::Mode::EBU_S> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
@@ -191,8 +199,8 @@ TEST_CASE("Test non-interleaved data", "[non-interleaved]"){
         const double target = -23.0;
         const long frames_30 = std::lround(1.66*samplerate);
         const long frames_20 = std::lround(1.34*samplerate);
-        auto sine_wave_30 = sineWaveChannels<double>(1000.0, samplerate, frames_30, channels, -30.0);
-        auto sine_wave_20 = sineWaveChannels<double>(1000.0, samplerate, frames_20, channels, -20.0);
+        auto sine_wave_30 = sineWaveChannels<TestType>(1000.0, samplerate, frames_30, channels, -30.0);
+        auto sine_wave_20 = sineWaveChannels<TestType>(1000.0, samplerate, frames_20, channels, -20.0);
         for (int i = 0; i < 5; ++i){
             meter.addFrames(sine_wave_20, frames_20);
             if (i > 0){
@@ -201,26 +209,26 @@ TEST_CASE("Test non-interleaved data", "[non-interleaved]"){
             meter.addFrames(sine_wave_30, frames_30);
             CHECK_THAT(meter.loudnessShortterm(), Catch::Matchers::WithinAbs(target, 0.1));
         }
-        std::vector<const double*> sine_wave2 = {sine_wave_20[0].data(), sine_wave_20[1].data()};
-        std::vector<const double*> sine_wave3 = {sine_wave_30[0].data(), sine_wave_30[1].data()};
+        std::vector<const TestType*> sine_wave2 = {sine_wave_20[0].data(), sine_wave_20[1].data()};
+        std::vector<const TestType*> sine_wave3 = {sine_wave_30[0].data(), sine_wave_30[1].data()};
         meter.addFrames(sine_wave2, frames_20);
         CHECK_THAT(meter.loudnessShortterm(), Catch::Matchers::WithinAbs(target, 0.1));
         meter.addFrames(sine_wave3.data(), frames_30);
         CHECK_THAT(meter.loudnessShortterm(), Catch::Matchers::WithinAbs(target, 0.1));
-        std::vector<double*> sine_wave4 = {sine_wave_20[0].data(), sine_wave_20[1].data()};
+        std::vector<TestType*> sine_wave4 = {sine_wave_20[0].data(), sine_wave_20[1].data()};
         meter.addFrames(sine_wave4, frames_20);
         CHECK_THAT(meter.loudnessShortterm(), Catch::Matchers::WithinAbs(target, 0.1));
     }
 }
 
-TEST_CASE("EBU Tech3341 true peak test cases", "[Tech3341][EBU][peak][true-peak]") {
+TEMPLATE_LIST_TEST_CASE("EBU Tech3341 true peak test cases", "[Tech3341][EBU][peak][true-peak]", DataTypes) {
     const unsigned long samplerate = GENERATE(48000, prime_samplerate, 96000, 190000);
     constexpr unsigned int channels = 2;
     loudness::Meter<loudness::Mode::TruePeak> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
     UNSCOPED_INFO(samplerate);
     SECTION("Test case 15"){
         const double target = -6.0;
-        auto sine_wave = sineWaveTP<double>(std::lround(samplerate/4.0), samplerate, channels, 0.0, 0.5);
+        auto sine_wave = sineWaveTP<TestType>(samplerate/4.0, samplerate, channels, 0.0, 0.5);
         meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
         CHECK_THAT(meter.samplePeak(0), Catch::Matchers::WithinAbs(0.5, 1e-9));
         CHECK_THAT(meter.samplePeak(1), Catch::Matchers::WithinAbs(0.5, 1e-9));
@@ -229,68 +237,68 @@ TEST_CASE("EBU Tech3341 true peak test cases", "[Tech3341][EBU][peak][true-peak]
     }
     SECTION("Test case 16"){
         const double target = -6.0;
-        auto sine_wave = sineWaveTP<double>(std::lround(samplerate/4.0), samplerate, channels, 45.0, 0.5);
+        auto sine_wave = sineWaveTP<TestType>(samplerate/4.0, samplerate, channels, 45.0, 0.5);
         meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
         CHECK_THAT(20*std::log10(meter.truePeak(0)), AsymetricMarginMatcher(target, 0.3, 0.2));
         CHECK_THAT(20*std::log10(meter.truePeak(1)), AsymetricMarginMatcher(target, 0.3, 0.2));
     }
     SECTION("Test case 17"){
         const double target = -6.0;
-        auto sine_wave = sineWaveTP<double>(std::lround(samplerate/6.0), samplerate, channels, 60.0, 0.5);
+        auto sine_wave = sineWaveTP<TestType>(samplerate/6.0, samplerate, channels, 60.0, 0.5);
         meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
         CHECK_THAT(20*std::log10(meter.truePeak(0)), AsymetricMarginMatcher(target, 0.3, 0.2));
         CHECK_THAT(20*std::log10(meter.truePeak(1)), AsymetricMarginMatcher(target, 0.3, 0.2));
     }
     SECTION("Test case 18"){
         const double target = -6.0;
-        auto sine_wave = sineWaveTP<double>(std::lround(samplerate/8.0), samplerate, channels, 67.5, 0.5);
+        auto sine_wave = sineWaveTP<TestType>(samplerate/8.0, samplerate, channels, 67.5, 0.5);
         meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
         CHECK_THAT(20*std::log10(meter.truePeak(0)), AsymetricMarginMatcher(target, 0.3, 0.2));
         CHECK_THAT(20*std::log10(meter.truePeak(1)), AsymetricMarginMatcher(target, 0.3, 0.2));
     }
     SECTION("Test case 19"){
         const double target = 3.0;
-        auto sine_wave = sineWaveTP<double>(std::lround(samplerate/4.0), samplerate, channels, 45.0, 1.41);
+        auto sine_wave = sineWaveTP<TestType>(samplerate/4.0, samplerate, channels, 45.0, 1.41);
         meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
         CHECK_THAT(20*std::log10(meter.truePeak(0)), AsymetricMarginMatcher(target, 0.3, 0.2));
         CHECK_THAT(20*std::log10(meter.truePeak(1)), AsymetricMarginMatcher(target, 0.3, 0.2));
     }
 }
 
-TEST_CASE("EBU Tech 3342 test cases", "[Tech3342][EBU][LRA][loudness-range]")
+TEMPLATE_LIST_TEST_CASE("EBU Tech 3342 test cases", "[Tech3342][EBU][LRA][loudness-range]", DataTypes)
 {
     const unsigned long samplerate = GENERATE(44100, 48000, prime_samplerate);
     constexpr unsigned int channels = 2;
     loudness::Meter<loudness::Mode::EBU_LRA> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
     SECTION("Test case 1"){
         constexpr double target = 10;
-        auto sine_wave_20 = sineWave<double>(1000, samplerate, 20*samplerate, channels, -20.0);
-        auto sine_wave_30 = sineWave<double>(1000, samplerate, 20*samplerate, channels, -30.0);
+        auto sine_wave_20 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -20.0);
+        auto sine_wave_30 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -30.0);
         meter.addFrames(sine_wave_20.data(), sine_wave_20.size() / channels);
         meter.addFrames(sine_wave_30.data(), sine_wave_30.size() / channels);
         CHECK_THAT(meter.loudnessRange(), Catch::Matchers::WithinAbs(target, 0.1));
     }
     SECTION("Test case 2"){
         constexpr double target = 5;
-        auto sine_wave_20 = sineWave<double>(1000, samplerate, 20*samplerate, channels, -20.0);
-        auto sine_wave_15 = sineWave<double>(1000, samplerate, 20*samplerate, channels, -15.0);
+        auto sine_wave_20 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -20.0);
+        auto sine_wave_15 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -15.0);
         meter.addFrames(sine_wave_20.data(), sine_wave_20.size() / channels);
         meter.addFrames(sine_wave_15.data(), sine_wave_15.size() / channels);
         CHECK_THAT(meter.loudnessRange(), Catch::Matchers::WithinAbs(target, 0.1));
     }
     SECTION("Test case 3"){
         constexpr double target = 20;
-        auto sine_wave_40 = sineWave<double>(1000, samplerate, 20*samplerate, channels, -40.0);
-        auto sine_wave_20 = sineWave<double>(1000, samplerate, 20*samplerate, channels, -20.0);
+        auto sine_wave_40 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -40.0);
+        auto sine_wave_20 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -20.0);
         meter.addFrames(sine_wave_40.data(), sine_wave_40.size() / channels);
         meter.addFrames(sine_wave_20.data(), sine_wave_20.size() / channels);
         CHECK_THAT(meter.loudnessRange(), Catch::Matchers::WithinAbs(target, 0.1));
     }
     SECTION("Test case 4"){
         constexpr double target = 15;
-        auto sine_wave_50 = sineWave<double>(1000, samplerate, 20*samplerate, channels, -50.0);
-        auto sine_wave_35 = sineWave<double>(1000, samplerate, 20*samplerate, channels, -35.0);
-        auto sine_wave_20 = sineWave<double>(1000, samplerate, 20*samplerate, channels, -20.0);
+        auto sine_wave_50 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -50.0);
+        auto sine_wave_35 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -35.0);
+        auto sine_wave_20 = sineWave<TestType>(1000, samplerate, 20*samplerate, channels, -20.0);
         meter.addFrames(sine_wave_50.data(), sine_wave_50.size() / channels);
         meter.addFrames(sine_wave_35.data(), sine_wave_35.size() / channels);
         meter.addFrames(sine_wave_20.data(), sine_wave_20.size() / channels);
@@ -359,40 +367,6 @@ TEST_CASE("File dependent tests from Tech 3341 and Tech 3342", "[.][EBU][Tech334
         CHECK_THAT(20*std::log10(meter.truePeak(0)), Catch::Matchers::WithinAbs(target, 0.2));
         CHECK_THAT(20*std::log10(meter.truePeak(1)), Catch::Matchers::WithinAbs(target, 0.2));
     }
-}
-
-TEST_CASE("Test multi-global-loudness", "[integrated][multi]"){
-    const unsigned long samplerate = GENERATE(44100, 48000, prime_samplerate);
-    constexpr unsigned int channels = 2;
-    constexpr double target = -23.0;
-    auto sine_wave1 = sineWave<double>(1000, samplerate, 20*samplerate, channels, -36.0);
-    auto sine_wave2 = sineWave<double>(1000, samplerate, 60*samplerate, channels, -23.0);
-
-    std::vector<loudness::Meter<loudness::Mode::EBU_I>> meters;
-    meters.emplace_back(loudness::NumChannels(channels), loudness::Samplerate(samplerate));
-    meters.emplace_back(loudness::NumChannels(channels), loudness::Samplerate(samplerate));
-
-    meters[0].addFrames(sine_wave1.data(), 20*samplerate);
-    meters[1].addFrames(sine_wave2.data(), 60*samplerate);
-
-    CHECK_THAT(loudnessGlobalMultiple(meters), Catch::Matchers::WithinAbs(target, 0.1));
-}
-
-TEST_CASE("Test multi-loudness-range", "[loudness-range][multi]"){
-    const unsigned long samplerate = GENERATE(44100, 48000, prime_samplerate);
-    constexpr unsigned int channels = 2;
-    constexpr double target = 13.0;
-    auto sine_wave1 = sineWave<double>(1000, samplerate, 20*samplerate, channels, -36.0);
-    auto sine_wave2 = sineWave<double>(1000, samplerate, 60*samplerate, channels, -23.0);
-
-    std::vector<loudness::Meter<loudness::Mode::EBU_LRA>> meters;
-    meters.emplace_back(loudness::NumChannels(channels), loudness::Samplerate(samplerate));
-    meters.emplace_back(loudness::NumChannels(channels), loudness::Samplerate(samplerate));
-
-    meters[0].addFrames(sine_wave1.data(), 20*samplerate);
-    meters[1].addFrames(sine_wave2.data(), 60*samplerate);
-
-    CHECK_THAT(loudnessRangeMultiple(meters), Catch::Matchers::WithinAbs(target, 0.1));
 }
 
 TEST_CASE("Benchmark Integrated Loudness", "[.benchmark][integrated]")

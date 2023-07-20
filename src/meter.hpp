@@ -121,7 +121,7 @@ namespace loudness {
          *  @param frames Number of frames. Not number of samples!
          */
         template <std::ranges::range Range>
-        void addFrames(Range src, size_t frames) {
+        void addFrames(const Range& src, size_t frames) {
             meter.addFrames(src, frames);
         }
 
@@ -132,7 +132,7 @@ namespace loudness {
          *  @param frames Number of frames. Not number of samples!
          */
         template <std::ranges::range Range>
-        void addFramesMT(Range src, size_t frames) {
+        void addFramesMT(const Range& src, size_t frames) {
             meter.addFramesMT(src, frames);
         }
 

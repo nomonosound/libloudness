@@ -28,10 +28,10 @@ namespace loudness::detail {
         void addFramesMT(DataType src, size_t frames);
 
         template <std::ranges::range Range>
-        void addFrames(Range src, size_t frames);
+        void addFrames(const Range& src, size_t frames);
 
         template <std::ranges::range Range>
-        void addFramesMT(Range src, size_t frames);
+        void addFramesMT(const Range& src, size_t frames);
 
         // Tech 3341
         [[nodiscard]] double loudnessGlobal() const;
@@ -72,7 +72,7 @@ namespace loudness::detail {
     };
 
     template <void (Meter::*Func)(DataType, size_t), std::ranges::range Range>
-    void addRange(Meter* obj, Range src, size_t frames) {
+    void addRange(Meter* obj, const Range& src, size_t frames) {
         using T = std::ranges::range_value_t<Range>;
         if constexpr (std::is_pointer_v<T>){
             using U = std::add_pointer_t<std::add_const_t<std::remove_pointer_t<T>>>;
@@ -99,13 +99,13 @@ namespace loudness::detail {
     }
 
     template<std::ranges::range Range>
-    void Meter::addFrames(Range src, size_t frames)
+    void Meter::addFrames(const Range& src, size_t frames)
     {
         addRange<&Meter::addFrames, Range>(this, src, frames);
     }
 
     template<std::ranges::range Range>
-    void Meter::addFramesMT(Range src, size_t frames)
+    void Meter::addFramesMT(const Range& src, size_t frames)
     {
         addRange<&Meter::addFramesMT, Range>(this, src, frames);
     }
