@@ -49,8 +49,8 @@ install(TARGETS loudness
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
-##### pkg-config
-#configure_file(${CMAKE_CURRENT_SOURCE_DIR}/libebur128.pc.cmake
-#               ${CMAKE_CURRENT_BINARY_DIR}/libebur128.pc @ONLY)
-#install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libebur128.pc"
-#        DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+### pkg-config
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/libloudness.pc.cmake
+               ${CMAKE_CURRENT_BINARY_DIR}/libloudness.pc @ONLY)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libloudness.pc"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
