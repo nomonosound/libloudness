@@ -28,10 +28,10 @@ namespace loudness {
         struct ChannelData {
             std::vector<float> buffer;
             size_t index;
-            double peak;
+            float peak;
         };
 
-        const std::vector<std::vector<double>> filter_;
+        const std::vector<std::vector<float>> filter_;
         std::vector<ChannelData> chan_data_;
     };
 
@@ -39,8 +39,8 @@ namespace loudness {
     void Interpolator::process(T* in_data, std::size_t frames, std::size_t chan)
     {
         const auto buffer = std::span(chan_data_[chan].buffer);
-        /* Have these variables on the local thread's stack to let the CPU optimize better */
-        double peak = 0.0;
+        /* Have these variables on the local thread's stack for better optimization */
+        float peak = 0.f;
         auto buf_i = chan_data_[chan].index;
 
         if constexpr (not std::is_pointer_v<T>){
@@ -67,7 +67,7 @@ namespace loudness {
                 /* Apply coefficients */
                 for (const auto& coeffs : filter_) {
                     /* The accumulation is split over the seam in the circular buffer */
-                    double acc = std::transform_reduce(
+                    float acc = std::transform_reduce(
                                 buffer.begin() + buf_i + 1,
                                 buffer.end(),
                                 coeffs.cbegin(),
@@ -75,7 +75,7 @@ namespace loudness {
                                     coeffs.cbegin() + coeffs.size() - 1 - buf_i,
                                     coeffs.cend(),
                                     buffer.begin(),
-                                    0.0
+                                    0.f
                                 ));
                     acc = std::abs(acc);
                     if (acc > peak) {

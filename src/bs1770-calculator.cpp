@@ -17,7 +17,7 @@ namespace loudness {
     {
         std::array<double, HistogramCalculator::HISTOGRAM_SIZE> histogram_energies;
         for (unsigned int i = 0; i < histogram_energies.size(); ++i) {
-            histogram_energies[i] = loudnessToEnergy(static_cast<double>(i) / 10.0 + abs_threshold + 0.05);
+            histogram_energies[i] = loudnessToEnergy(static_cast<double>(i) / 10.0 + absolute_gate_LUFS + 0.05);
         }
         return histogram_energies;
     }
@@ -26,13 +26,13 @@ namespace loudness {
 
     constexpr size_t findHistogramIndex(double energy)
     {
-        constexpr double max = loudnessToEnergy((HistogramCalculator::HISTOGRAM_SIZE - 1) / 10.0 + abs_threshold);
+        constexpr double max = loudnessToEnergy((HistogramCalculator::HISTOGRAM_SIZE - 1) / 10.0 + absolute_gate_LUFS);
         if (energy >= max) [[unlikely]]{
             return HistogramCalculator::HISTOGRAM_SIZE - 1;
         } else if (energy <= minimum_energy) [[unlikely]]{
             return 0;
         } else [[likely]]{
-            return static_cast<size_t>(10.0 * (energyToLoudness(energy) - abs_threshold));
+            return static_cast<size_t>(10.0 * (energyToLoudness(energy) - absolute_gate_LUFS));
         }
     }
 

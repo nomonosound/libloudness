@@ -36,14 +36,13 @@ set_target_properties(loudness PROPERTIES
   VERSION ${LOUDNESS_VERSION}
 )
 
-if(BUILD_SHARED_LIBS)
-else()
+if(NOT BUILD_SHARED_LIBS)
   if(WITH_STATIC_PIC)
     set_property(TARGET loudness PROPERTY POSITION_INDEPENDENT_CODE ON)
   endif()
 endif()
 
-install(FILES meter.hpp detail/meter-impl.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(FILES meter.hpp defines.hpp detail/meter-impl.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/loudness)
 install(TARGETS loudness
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

@@ -3,9 +3,9 @@
 
 #include <cstdint>
 #include <limits>
+#include <stdexcept>
 #include <type_traits>
 #include <variant>
-#include <stdexcept>
 
 namespace loudness {
 

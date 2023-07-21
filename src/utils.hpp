@@ -18,7 +18,7 @@ public:
     {
         _mm_setcsr(mxcsr_ | _MM_FLUSH_ZERO_ON | _MM_DENORMALS_ZERO_ON);
     }
-    ~ScopedFTZ(){
+    ~ScopedFTZ() noexcept {
         _mm_setcsr(mxcsr_);
     }
     ScopedFTZ& operator=(const ScopedFTZ&) = delete;
@@ -96,8 +96,8 @@ namespace loudness {
         return medianInPlace(copied);
     }
 
-    template <unsigned div, std::integral T>
-        requires (div % 2 == 0)
+    template <int div, std::integral T>
+        requires (div % 2 == 0 && div > 0)
     constexpr T roundedDivide(T number) {
         if constexpr (std::unsigned_integral<T>){
             return (number + div / 2) / div;

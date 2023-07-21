@@ -57,7 +57,6 @@ namespace loudness::detail {
 
         /** The channel map. Has as many elements as there are channels. */
         std::vector<Channel> channel_map;
-
         std::vector<double> channel_weight;
 
         /** How many samples fit in 100ms (rounded). */
@@ -84,6 +83,43 @@ namespace loudness::detail {
         std::optional<BS::thread_pool> pool;
         Mode mode;
     };
+
+    Impl::Impl(unsigned int channels, unsigned long samplerate, Mode mode)
+        : calculated_subblocks(channels, std::deque<double>()),
+          samples_in_100ms(roundedDivide<subblocks_in_s>(samplerate)),
+          /* the first block needs 400ms of audio data */
+          needed_frames(samples_in_100ms * m_subblocks),
+          k_filter(static_cast<double>(samplerate), channels),
+          sample_peak(channels),
+          last_sample_peak(channels),
+          true_peak(channels),
+          mode(mode)
+    {
+        initChannelMap(channels);
+
+        if ((mode & Mode::Histogram) == Mode::Histogram) {
+            bs1770_calculator = std::make_unique<HistogramCalculator>();
+        }
+        else {
+            bs1770_calculator = std::make_unique<BlockListCalculator>();
+        }
+
+        if ((mode & Mode::EBU_S) == Mode::EBU_S) {
+            window_ms = shortterm_block_ms;
+        }
+        else if ((mode & Mode::EBU_M) == Mode::EBU_M) {
+            window_ms = momentary_block_ms;
+        } else {
+            // Disable window
+            window_ms = 0;
+        }
+
+        initAudioBuffers(channels, samplerate);
+
+        if ((mode & Mode::TruePeak) == Mode::TruePeak) {
+            initInterpolator(channels, samplerate);
+        }
+    }
 
     void Impl::initChannelMap(size_t num_channels)
     {
@@ -153,7 +189,7 @@ namespace loudness::detail {
 
     void Impl::initAudioBuffers(unsigned num_channels, unsigned long samplerate)
     {
-        audio_data_frames = (samplerate * window_ms) / 1000;
+        audio_data_frames = (samplerate * window_ms) / milliseconds_in_second;
         if (audio_data_frames % samples_in_100ms != 0) {
             /* round up to multiple of samples_in_100ms */
             audio_data_frames = (audio_data_frames + samples_in_100ms) - (audio_data_frames % samples_in_100ms);
@@ -178,56 +214,6 @@ namespace loudness::detail {
         }
         else {
             interpolator = std::nullopt;
-        }
-    }
-
-    Meter::Meter(NumChannels channels, Samplerate samplerate, Mode mode)
-        : mode_(mode), channels_(channels.get()), samplerate_(samplerate.get()), pimpl(std::make_unique<Impl>(channels_, samplerate_, mode))
-    {
-    }
-
-    void Meter::reset()
-    {
-        pimpl = std::make_unique<Impl>(channels_, samplerate_, mode_);
-    }
-
-    Meter::~Meter() noexcept = default;
-    Meter::Meter(Meter&& other) noexcept = default;
-
-    Impl::Impl(unsigned int channels, unsigned long samplerate, Mode mode)
-        : calculated_subblocks(channels, std::deque<double>()),
-          samples_in_100ms(roundedDivide<10>(samplerate)),
-          /* the first block needs 400ms of audio data */
-          needed_frames(samples_in_100ms * m_subblocks),
-          k_filter(static_cast<double>(samplerate), channels),
-          sample_peak(channels),
-          last_sample_peak(channels),
-          true_peak(channels),
-          mode(mode)
-    {
-        initChannelMap(channels);
-
-        if ((mode & Mode::Histogram) == Mode::Histogram) {
-            bs1770_calculator = std::make_unique<HistogramCalculator>();
-        }
-        else {
-            bs1770_calculator = std::make_unique<BlockListCalculator>();
-        }
-
-        if ((mode & Mode::EBU_S) == Mode::EBU_S) {
-            window_ms = shortterm_block_ms;
-        }
-        else if ((mode & Mode::EBU_M) == Mode::EBU_M) {
-            window_ms = momentary_block_ms;
-        } else {
-            // Disable window
-            window_ms = 0;
-        }
-
-        initAudioBuffers(channels, samplerate);
-
-        if ((mode & Mode::TruePeak) == Mode::TruePeak) {
-            initInterpolator(channels, samplerate);
         }
     }
 
@@ -331,7 +317,7 @@ namespace loudness::detail {
                     short_term_frame_counter += needed_frames;
                     if (short_term_frame_counter == samples_in_100ms * st_subblocks) {
                         addShorttermBlock();
-                        short_term_frame_counter = samples_in_100ms * 20;
+                        short_term_frame_counter = samples_in_100ms * (st_subblocks - st_subblock_overlap);
                     }
                 }
                 /* 100ms are needed for all blocks besides the first one */
@@ -356,7 +342,6 @@ namespace loudness::detail {
             }
         }
     }
-
 
     void Impl::calcSubBlocks()
     {
@@ -403,6 +388,21 @@ namespace loudness::detail {
         }
     }
 
+    /* Meter */
+
+    Meter::Meter(NumChannels channels, Samplerate samplerate, Mode mode)
+        : mode_(mode), channels_(channels.get()), samplerate_(samplerate.get()), pimpl(std::make_unique<Impl>(channels_, samplerate_, mode))
+    {
+    }
+
+    Meter::~Meter() noexcept = default;
+    Meter::Meter(Meter&& other) noexcept = default;
+
+    void Meter::reset()
+    {
+        pimpl = std::make_unique<Impl>(channels_, samplerate_, mode_);
+    }
+
     void Meter::setChannel(unsigned int channel_index, Channel value)
     {
         if (channel_index >= channels_) {
@@ -431,7 +431,7 @@ namespace loudness::detail {
         }
         if (samplerate.get() != samplerate_) {
             samplerate_ = samplerate.get();
-            pimpl->samples_in_100ms = roundedDivide<10>(samplerate_);
+            pimpl->samples_in_100ms = roundedDivide<subblocks_in_s>(samplerate_);
         }
 
         /* If we're here, either samplerate or channels
@@ -548,7 +548,7 @@ namespace loudness::detail {
         auto [above_thresh_counter, relative_threshold] = pimpl->bs1770_calculator->blockCountAndSum();
 
         if (above_thresh_counter == 0) {
-            return abs_threshold;
+            return absolute_gate_LUFS;
         }
 
         relative_threshold /= static_cast<double>(above_thresh_counter);
@@ -593,10 +593,10 @@ namespace loudness::detail {
 
     double Meter::loudnessWindow(unsigned long window_ms) const
     {
-        const size_t interval_frames = (samplerate_ * window_ms) / 1000;
+        const size_t interval_frames = (samplerate_ * window_ms) / milliseconds_in_second;
 
         if (interval_frames > pimpl->audio_data_frames) {
-            throw std::domain_error("Given window too large for current mode");
+            throw std::domain_error("Requested window larger than currently configured max window");
         }
 
         const double energy = pimpl->energyInInterval(interval_frames);

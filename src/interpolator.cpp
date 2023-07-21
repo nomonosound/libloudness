@@ -10,7 +10,7 @@ namespace loudness {
     namespace {
         auto createFilter(unsigned int taps, unsigned int factor) {
             static constexpr double almost_zero = 0.000001;
-            std::vector<std::vector<double>> filter(factor - 1);
+            std::vector<std::vector<float>> filter(factor - 1);
             for (unsigned int j = taps; j-- > 0;) {
                 const unsigned int f = j % factor;
                 /* Skip first factor, as it just equals an input sample */
@@ -26,7 +26,7 @@ namespace loudness {
                 /* Put the coefficient into the correct subfilter.
                  * First factor is skipped, none of the others have zeros.
                  */
-                filter[f-1].push_back(c);
+                filter[f-1].push_back(static_cast<float>(c));
             }
             return filter;
         }

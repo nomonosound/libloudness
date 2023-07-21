@@ -4,8 +4,7 @@ project(libloudness)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-option(BUILD_SHARED_LIBS
-    "Build shared libraries instead of static ones" ON)
+option(BUILD_SHARED_LIBS "Build shared libraries instead of static ones" ON)
 
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
