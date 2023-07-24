@@ -23,6 +23,7 @@ namespace loudness {
         template <ConstData T>
         void process(T* in_data, std::size_t frames, std::size_t chan);
         [[nodiscard]] double peak(unsigned int channel) const;
+        [[nodiscard]] double peak() const;
 
         [[nodiscard]] unsigned int channels() const { return chan_data_.size(); }
 

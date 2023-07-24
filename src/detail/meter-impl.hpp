@@ -54,6 +54,11 @@ namespace loudness::detail {
         [[nodiscard]] double truePeak(unsigned int channel_index) const;
         [[nodiscard]] double lastTruePeak(unsigned int channel_index) const;
 
+        [[nodiscard]] double samplePeak() const;
+        [[nodiscard]] double lastSamplePeak() const;
+        [[nodiscard]] double truePeak() const;
+        [[nodiscard]] double lastTruePeak() const;
+
         [[nodiscard]] double relativeThreshold() const;
 
         [[nodiscard]] static double loudnessGlobalMultiple(const std::vector<const Meter*>& meters);

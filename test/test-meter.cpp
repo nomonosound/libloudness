@@ -143,14 +143,17 @@ TEST_CASE("Change parameters works as expected", "[meter][parameters]")
     meter.addFrames(sine_wave1, 3 * samplerate1);
     CHECK_THAT(20 * std::log10(meter.truePeak(0)), Catch::Matchers::WithinAbs(-23.0, 0.1));
     CHECK_THAT(20 * std::log10(meter.truePeak(1)), Catch::Matchers::WithinAbs(-23.0, 0.1));
+    CHECK_THAT(20 * std::log10(meter.truePeak()), Catch::Matchers::WithinAbs(-23.0, 0.1));
     CHECK(meter.changeParameters(loudness::NumChannels(channels2), loudness::Samplerate(samplerate2)));
     meter.addFrames(sine_wave2, 3 * samplerate2);
     CHECK_THAT(20 * std::log10(meter.truePeak(0)), Catch::Matchers::WithinAbs(-20.0, 0.1));
+    CHECK_THAT(20 * std::log10(meter.truePeak()), Catch::Matchers::WithinAbs(-20.0, 0.1));
     CHECK_THROWS_AS(meter.truePeak(1), std::out_of_range);
     CHECK(meter.changeParameters(loudness::NumChannels(channels1), loudness::Samplerate(samplerate1)));
     meter.addFrames(sine_wave1, 3 * samplerate1);
     CHECK_THAT(20 * std::log10(meter.truePeak(0)), Catch::Matchers::WithinAbs(-23.0, 0.1));
     CHECK_THAT(20 * std::log10(meter.truePeak(1)), Catch::Matchers::WithinAbs(-23.0, 0.1));
+    CHECK_THAT(20 * std::log10(meter.truePeak()), Catch::Matchers::WithinAbs(-23.0, 0.1));
     CHECK_THAT(meter.loudnessGlobal(), Catch::Matchers::WithinAbs(-23.0, 0.1));
 }
 
@@ -226,15 +229,15 @@ TEST_CASE("Resetting the meter", "[meter][reset]")
     CHECK_THAT(meter.loudnessMomentary(), Catch::Matchers::WithinAbs(-22.0, 0.1));
     CHECK_THAT(meter.loudnessShortterm(), Catch::Matchers::WithinAbs(-22.0, 0.1));
     CHECK(meter.loudnessRange() > 0.0);
-    CHECK(meter.truePeak(0) > 0.0);
-    CHECK(meter.samplePeak(0) > 0.0);
+    CHECK(meter.truePeak() > 0.0);
+    CHECK(meter.samplePeak() > 0.0);
     meter.reset();
     CHECK(meter.loudnessGlobal() == -HUGE_VAL);
     CHECK(meter.loudnessMomentary() == -HUGE_VAL);
     CHECK(meter.loudnessShortterm() == -HUGE_VAL);
     CHECK(meter.loudnessRange() == 0.0);
-    CHECK(meter.truePeak(0) == 0.0);
-    CHECK(meter.samplePeak(0) == 0.0);
+    CHECK(meter.truePeak() == 0.0);
+    CHECK(meter.samplePeak() == 0.0);
 }
 
 TEMPLATE_LIST_TEST_CASE("At sample rate >= 192000 true peak == sample peak", "[meter][true-peak][sample-peak]",
@@ -250,12 +253,16 @@ TEMPLATE_LIST_TEST_CASE("At sample rate >= 192000 true peak == sample peak", "[m
 
     CHECK_THAT(meter.samplePeak(0), Catch::Matchers::WithinAbs(target, 1e-9));
     CHECK_THAT(meter.samplePeak(1), Catch::Matchers::WithinAbs(target, 1e-9));
+    CHECK_THAT(meter.samplePeak(), Catch::Matchers::WithinAbs(target, 1e-9));
     CHECK(meter.lastSamplePeak(0) == meter.samplePeak(0));
     CHECK(meter.lastSamplePeak(1) == meter.samplePeak(1));
+    CHECK(meter.lastSamplePeak() == meter.samplePeak());
     CHECK(meter.truePeak(0) == meter.samplePeak(0));
     CHECK(meter.truePeak(1) == meter.samplePeak(1));
+    CHECK(meter.truePeak() == meter.samplePeak());
     CHECK(meter.lastTruePeak(0) == meter.samplePeak(0));
     CHECK(meter.lastTruePeak(1) == meter.samplePeak(1));
+    CHECK(meter.lastTruePeak() == meter.samplePeak());
 
     constexpr double new_target = 0.25;
     sine_wave = sineWaveTP<TestType>(samplerate / 4.0, samplerate, channels, 0.0, new_target);
@@ -263,12 +270,16 @@ TEMPLATE_LIST_TEST_CASE("At sample rate >= 192000 true peak == sample peak", "[m
 
     CHECK_THAT(meter.samplePeak(0), Catch::Matchers::WithinAbs(target, 1e-9));
     CHECK_THAT(meter.samplePeak(1), Catch::Matchers::WithinAbs(target, 1e-9));
+    CHECK_THAT(meter.samplePeak(), Catch::Matchers::WithinAbs(target, 1e-9));
     CHECK_THAT(meter.lastSamplePeak(0), Catch::Matchers::WithinAbs(new_target, 1e-9));
     CHECK_THAT(meter.lastSamplePeak(1), Catch::Matchers::WithinAbs(new_target, 1e-9));
+    CHECK_THAT(meter.lastSamplePeak(), Catch::Matchers::WithinAbs(new_target, 1e-9));
     CHECK(meter.truePeak(0) == meter.samplePeak(0));
     CHECK(meter.truePeak(1) == meter.samplePeak(1));
+    CHECK(meter.truePeak() == meter.samplePeak());
     CHECK(meter.lastTruePeak(0) == meter.lastSamplePeak(0));
     CHECK(meter.lastTruePeak(1) == meter.lastSamplePeak(1));
+    CHECK(meter.lastTruePeak() == meter.lastSamplePeak());
 }
 
 template <class Meter>
@@ -286,10 +297,8 @@ void checkLoudness(const Meter& meter, double target, double margin)
 template <class Meter>
 void checkTruePeak(const Meter& meter, double target)
 {
-    CHECK_THAT(20 * std::log10(meter.truePeak(0)), AsymetricMarginMatcher(target, 0.3, 0.2));
-    CHECK_THAT(20 * std::log10(meter.truePeak(1)), AsymetricMarginMatcher(target, 0.3, 0.2));
-    CHECK_THAT(20 * std::log10(meter.samplePeak(0) * std::numbers::sqrt2), AsymetricMarginMatcher(target, 0.3, 0.2));
-    CHECK_THAT(20 * std::log10(meter.samplePeak(1) * std::numbers::sqrt2), AsymetricMarginMatcher(target, 0.3, 0.2));
+    CHECK_THAT(20 * std::log10(meter.truePeak()), AsymetricMarginMatcher(target, 0.3, 0.2));
+    CHECK_THAT(20 * std::log10(meter.samplePeak() * std::numbers::sqrt2), AsymetricMarginMatcher(target, 0.3, 0.2));
 }
 
 TEMPLATE_LIST_TEST_CASE("Test all input data configurations", "[meter][input]", DataTypes)

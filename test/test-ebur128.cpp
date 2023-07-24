@@ -257,8 +257,10 @@ TEMPLATE_LIST_TEST_CASE("EBU Tech3341 true peak test cases", "[Tech3341][EBU][pe
         meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
         CHECK_THAT(meter.samplePeak(0), Catch::Matchers::WithinAbs(0.5, 1e-9));
         CHECK_THAT(meter.samplePeak(1), Catch::Matchers::WithinAbs(0.5, 1e-9));
+        CHECK_THAT(meter.samplePeak(), Catch::Matchers::WithinAbs(0.5, 1e-9));
         CHECK_THAT(20 * std::log10(meter.truePeak(0)), AsymetricMarginMatcher(target, 0.3, 0.2));
         CHECK_THAT(20 * std::log10(meter.truePeak(1)), AsymetricMarginMatcher(target, 0.3, 0.2));
+        CHECK_THAT(20 * std::log10(meter.truePeak()), AsymetricMarginMatcher(target, 0.3, 0.2));
     }
     SECTION("Test case 16")
     {
@@ -267,6 +269,7 @@ TEMPLATE_LIST_TEST_CASE("EBU Tech3341 true peak test cases", "[Tech3341][EBU][pe
         meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
         CHECK_THAT(20 * std::log10(meter.truePeak(0)), AsymetricMarginMatcher(target, 0.3, 0.2));
         CHECK_THAT(20 * std::log10(meter.truePeak(1)), AsymetricMarginMatcher(target, 0.3, 0.2));
+        CHECK_THAT(20 * std::log10(meter.truePeak()), AsymetricMarginMatcher(target, 0.3, 0.2));
     }
     SECTION("Test case 17")
     {
@@ -275,6 +278,7 @@ TEMPLATE_LIST_TEST_CASE("EBU Tech3341 true peak test cases", "[Tech3341][EBU][pe
         meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
         CHECK_THAT(20 * std::log10(meter.truePeak(0)), AsymetricMarginMatcher(target, 0.3, 0.2));
         CHECK_THAT(20 * std::log10(meter.truePeak(1)), AsymetricMarginMatcher(target, 0.3, 0.2));
+        CHECK_THAT(20 * std::log10(meter.truePeak()), AsymetricMarginMatcher(target, 0.3, 0.2));
     }
     SECTION("Test case 18")
     {
@@ -283,6 +287,7 @@ TEMPLATE_LIST_TEST_CASE("EBU Tech3341 true peak test cases", "[Tech3341][EBU][pe
         meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
         CHECK_THAT(20 * std::log10(meter.truePeak(0)), AsymetricMarginMatcher(target, 0.3, 0.2));
         CHECK_THAT(20 * std::log10(meter.truePeak(1)), AsymetricMarginMatcher(target, 0.3, 0.2));
+        CHECK_THAT(20 * std::log10(meter.truePeak()), AsymetricMarginMatcher(target, 0.3, 0.2));
     }
     SECTION("Test case 19")
     {
@@ -291,6 +296,7 @@ TEMPLATE_LIST_TEST_CASE("EBU Tech3341 true peak test cases", "[Tech3341][EBU][pe
         meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
         CHECK_THAT(20 * std::log10(meter.truePeak(0)), AsymetricMarginMatcher(target, 0.3, 0.2));
         CHECK_THAT(20 * std::log10(meter.truePeak(1)), AsymetricMarginMatcher(target, 0.3, 0.2));
+        CHECK_THAT(20 * std::log10(meter.truePeak()), AsymetricMarginMatcher(target, 0.3, 0.2));
     }
 }
 
@@ -413,6 +419,7 @@ TEST_CASE("File dependent tests from Tech 3341 and Tech 3342", "[.][EBU][Tech334
         meter.addFrames(interleaved.data(), num_frames);
         CHECK_THAT(20 * std::log10(meter.truePeak(0)), Catch::Matchers::WithinAbs(target, 0.2));
         CHECK_THAT(20 * std::log10(meter.truePeak(1)), Catch::Matchers::WithinAbs(target, 0.2));
+        CHECK_THAT(20 * std::log10(meter.truePeak()), Catch::Matchers::WithinAbs(target, 0.2));
     }
 }
 

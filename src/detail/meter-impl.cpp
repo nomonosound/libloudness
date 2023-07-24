@@ -671,6 +671,29 @@ namespace loudness::detail {
         return pimpl_->last_sample_peak_[channel_index];
     }
 
+    double Meter::samplePeak() const
+    {
+        return *std::max_element(pimpl_->sample_peak_.cbegin(), pimpl_->sample_peak_.cend());
+    }
+
+    double Meter::lastSamplePeak() const
+    {
+        return *std::max_element(pimpl_->last_sample_peak_.cbegin(), pimpl_->last_sample_peak_.cend());
+    }
+
+    double Meter::truePeak() const
+    {
+        return std::max(*std::max_element(pimpl_->true_peak_.cbegin(), pimpl_->true_peak_.cend()), samplePeak());
+    }
+
+    double Meter::lastTruePeak() const
+    {
+        if (pimpl_->interpolator_.has_value()) {
+            return std::max(pimpl_->interpolator_->peak(), lastSamplePeak());
+        }
+        return lastSamplePeak();
+    }
+
     double Meter::loudnessRangeMultipleHist(const std::vector<const Meter*>& meters)
     {
         std::vector<const HistogramCalculator*> hists;

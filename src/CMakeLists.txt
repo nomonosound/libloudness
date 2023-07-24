@@ -25,8 +25,9 @@ add_library(loudness
   meter.hpp
   utils.hpp
 )
+target_include_directories(loudness INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_include_directories(loudness PUBLIC ${CMAKE_SOURCE_DIR}/vendor/thread-pool/include)
+target_include_directories(loudness PRIVATE ${CMAKE_SOURCE_DIR}/vendor/thread-pool/include)
 target_link_libraries(loudness gcem)
 
 set_target_properties(loudness PROPERTIES

@@ -254,6 +254,11 @@ namespace loudness {
         {
             return meter.samplePeak(channel_number);
         }
+        [[nodiscard]] double samplePeak() const
+            requires((mode & Mode::SamplePeak) == Mode::SamplePeak)
+        {
+            return meter.samplePeak();
+        }
 
         /** @brief Get maximum sample peak from the last call to addFrames().
          *
@@ -267,6 +272,11 @@ namespace loudness {
             requires((mode & Mode::SamplePeak) == Mode::SamplePeak)
         {
             return meter.lastSamplePeak(channel_number);
+        }
+        [[nodiscard]] double lastSamplePeak() const
+            requires((mode & Mode::SamplePeak) == Mode::SamplePeak)
+        {
+            return meter.lastSamplePeak();
         }
 
         /** @brief Get maximum true peak from all frames that have been processed.
@@ -290,18 +300,13 @@ namespace loudness {
         {
             return meter.truePeak(channel_number);
         }
+        [[nodiscard]] double truePeak() const
+            requires((mode & Mode::TruePeak) == Mode::TruePeak)
+        {
+            return meter.truePeak();
+        }
 
-        /** @brief Get maximum true peak from the last call to addFrames().
-         *
-         *  Uses an implementation defined algorithm to calculate the true peak. Do not
-         *  try to compare resulting values across different versions of the library,
-         *  as the algorithm may change.
-         *
-         *  The current implementation uses a custom polyphase FIR interpolator to
-         *  calculate true peak. Will oversample 4x for sample rates < 96000 Hz, 2x for
-         *  sample rates < 192000 Hz and leave the signal unchanged for >= 192000 Hz.
-         *
-         *  The equation to convert to dBTP is: 20 * log10(out)
+        /** @brief Same as truePeak, but only peak from the last call to addFrames().
          *
          *  @param  channel_number channel to analyse
          *  @return maximum true peak in linear form (1.0 is 0 dBTP)
@@ -311,6 +316,11 @@ namespace loudness {
             requires((mode & Mode::TruePeak) == Mode::TruePeak)
         {
             return meter.lastTruePeak(channel_number);
+        }
+        [[nodiscard]] double lastTruePeak() const
+            requires((mode & Mode::TruePeak) == Mode::TruePeak)
+        {
+            return meter.lastTruePeak();
         }
 
         /** @brief Get relative threshold in LUFS.

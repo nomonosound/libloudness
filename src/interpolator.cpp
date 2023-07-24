@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cmath>
 #include <numbers>
+#include <ranges>
 
 #include "utils.hpp"
 
@@ -46,5 +47,10 @@ namespace loudness {
     {
         assert(channel < chan_data_.size());
         return chan_data_[channel].peak;
+    }
+
+    double Interpolator::peak() const
+    {
+        return std::ranges::max_element(chan_data_, [](const auto& lhs, const auto& rhs){return lhs.peak < rhs.peak;})->peak;
     }
 }  // namespace loudness
