@@ -206,12 +206,12 @@ namespace loudness {
          *  window must not be larger than the current window set
          *  The current window can be changed by calling setMaxWindow().
          *
-         *  @param  window window in ms to calculate loudness.
+         *  @param  window_ms window in ms to calculate loudness.
          *  @param  out loudness in LUFS. -HUGE_VAL if result is negative infinity.
          *  @throws std::domain_error if window is larger than currently configured.
          */
-        [[nodiscard]] double loudnessWindow(unsigned long window) const requires ((mode & Mode::EBU_M) == Mode::EBU_M) {
-            return meter.loudnessWindow(window);
+        [[nodiscard]] double loudnessWindow(unsigned long window_ms) const requires ((mode & Mode::EBU_M) == Mode::EBU_M) {
+            return meter.loudnessWindow(window_ms);
         }
 
         /** @brief Get loudness range (LRA) of programme in LU.

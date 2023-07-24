@@ -64,7 +64,7 @@ namespace loudness::detail {
         const Mode mode_;            /**< The mode of the meter */
         unsigned int channels_;      /**< The number of channels. */
         unsigned long samplerate_;   /**< The sample rate. */
-        std::unique_ptr<struct Impl> pimpl; /**< Internal state. */
+        std::unique_ptr<struct Impl> pimpl_; /**< Internal state. */
     };
 
     /* Ugly template code to convert ranges into pointers */

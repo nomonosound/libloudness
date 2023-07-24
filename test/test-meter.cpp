@@ -71,6 +71,120 @@ TEST_CASE("Test configuration", "[meter][parameters][setChannel]") {
     }
 }
 
+TEST_CASE("Test window functions", "[meter][window]"){
+    constexpr long samplerate = 32000;
+    constexpr int channels = 2;
+    SECTION("M Mode has 400 ms window by default"){
+        constexpr long num_samples = samplerate;
+        constexpr double target = -23.0;
+        loudness::Meter<loudness::Mode::EBU_M> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
+        auto sine_wave = sineWave<float>(1000.0, samplerate, num_samples, channels, target);
+        meter.addFrames(sine_wave, num_samples);
+        CHECK_THAT(meter.loudnessWindow(400), Catch::Matchers::WithinAbs(target, 0.1));
+        CHECK_THROWS_AS(meter.loudnessWindow(401), std::domain_error);
+    }
+    SECTION("S Mode has 3000 ms window by default"){
+        constexpr long num_samples = 4*samplerate;
+        constexpr double target = -23.0;
+        loudness::Meter<loudness::Mode::EBU_S> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
+        auto sine_wave = sineWave<float>(1000.0, samplerate, num_samples, channels, target);
+        meter.addFrames(sine_wave, num_samples);
+        CHECK_THAT(meter.loudnessWindow(3000), Catch::Matchers::WithinAbs(target, 0.1));
+        CHECK_THROWS_AS(meter.loudnessWindow(3001), std::domain_error);
+    }
+    SECTION("Reading windows works as expected"){
+        constexpr long num_samples = 3*samplerate;
+        constexpr double target1 = -23.0;
+        constexpr double target2 = -36.0;
+        const auto sine_wave1 = sineWave<float>(1000.0, samplerate, num_samples, channels, target1);
+        const auto sine_wave2 = sineWave<float>(1000.0, samplerate, num_samples, channels, target2);
+        loudness::Meter<loudness::Mode::EBU_M> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
+        CHECK(meter.setMaxWindow(2500));
+        CHECK_FALSE(meter.setMaxWindow(2500));
+        meter.addFrames(sine_wave1, num_samples);
+        CHECK_THAT(meter.loudnessWindow(2500), Catch::Matchers::WithinAbs(target1, 0.1));
+        CHECK_THROWS_AS(meter.loudnessWindow(2501), std::domain_error);
+        meter.addFrames(sine_wave2, samplerate/2);
+        CHECK_THAT(meter.loudnessWindow(400), Catch::Matchers::WithinAbs(target2, 0.1));
+        CHECK(meter.setMaxWindow(700));
+        CHECK_FALSE(meter.setMaxWindow(700));
+        meter.addFrames(sine_wave1, num_samples);
+        CHECK_THAT(meter.loudnessWindow(700), Catch::Matchers::WithinAbs(target1, 0.1));
+        CHECK_THROWS_AS(meter.loudnessWindow(701), std::domain_error);
+    }
+}
+
+TEST_CASE("Change parameters works as expected", "[meter][parameters]"){
+    constexpr long samplerate1 = 32000;
+    constexpr int channels1 = 2;
+    constexpr long samplerate2 = 48000;
+    constexpr int channels2 = 1;
+    constexpr double target1 = -23.0;
+    constexpr double target2 = -20.0;
+    const auto sine_wave1 = sineWave<float>(1000.0, samplerate1, 3*samplerate1, channels1, target1);
+    const auto sine_wave2 = sineWave<float>(1000.0, samplerate2, 3*samplerate2, channels2, target2);
+    loudness::Meter<loudness::Mode::EBU_I | loudness::Mode::TruePeak> meter{loudness::NumChannels(channels1), loudness::Samplerate(samplerate1)};
+    meter.addFrames(sine_wave1, 3*samplerate1);
+    CHECK_THAT(20*std::log10(meter.truePeak(0)), Catch::Matchers::WithinAbs(-23.0, 0.1));
+    CHECK_THAT(20*std::log10(meter.truePeak(1)), Catch::Matchers::WithinAbs(-23.0, 0.1));
+    CHECK(meter.changeParameters(loudness::NumChannels(channels2), loudness::Samplerate(samplerate2)));
+    meter.addFrames(sine_wave2, 3*samplerate2);
+    CHECK_THAT(20*std::log10(meter.truePeak(0)), Catch::Matchers::WithinAbs(-20.0, 0.1));
+    CHECK_THROWS_AS(meter.truePeak(1), std::out_of_range);
+    CHECK(meter.changeParameters(loudness::NumChannels(channels1), loudness::Samplerate(samplerate1)));
+    meter.addFrames(sine_wave1, 3*samplerate1);
+    CHECK_THAT(20*std::log10(meter.truePeak(0)), Catch::Matchers::WithinAbs(-23.0, 0.1));
+    CHECK_THAT(20*std::log10(meter.truePeak(1)), Catch::Matchers::WithinAbs(-23.0, 0.1));
+    CHECK_THAT(meter.loudnessGlobal(), Catch::Matchers::WithinAbs(-23.0, 0.1));
+}
+
+TEST_CASE("Test setChannel", "[meter][setChannel][dual-mono]"){
+    constexpr long samplerate = 32000;
+    SECTION("Dual mono"){
+        SECTION ("Allowed for non-mono meters"){
+            loudness::Meter<loudness::Mode::EBU_I> meter{loudness::NumChannels(2), loudness::Samplerate(samplerate)};
+            CHECK_NOTHROW(meter.setChannel(0, loudness::Channel::DualMono));
+        }
+        SECTION ("Produces expected output"){
+            constexpr double target = -23.0;
+            constexpr long num_samples = samplerate;
+            constexpr int channels = 1;
+            loudness::Meter<loudness::Mode::EBU_I> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
+            auto sine_wave = sineWave<float>(1000.0, samplerate, num_samples, channels, target);
+            CHECK_NOTHROW(meter.setChannel(0, loudness::Channel::DualMono));
+            meter.addFrames(sine_wave, num_samples);
+            /* This would have been 3 LU lower for normal mono */
+            CHECK_THAT(meter.loudnessGlobal(), Catch::Matchers::WithinAbs(target, 0.1));
+            CHECK_THAT(meter.loudnessMomentary(), Catch::Matchers::WithinAbs(target, 0.1));
+        }
+    }
+    SECTION("Unused channel"){
+        constexpr double target = -23.0;
+        constexpr long num_samples = samplerate;
+        SECTION ("Only unused channels adds no data"){
+            constexpr int channels = 1;
+            loudness::Meter<loudness::Mode::EBU_I> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
+            auto sine_wave = sineWave<float>(1000.0, samplerate, num_samples, channels, target);
+            // Should this be an error?
+            CHECK_NOTHROW(meter.setChannel(0, loudness::Channel::Unused));
+            meter.addFrames(sine_wave, num_samples);
+            /* No data added, so -HUGE_VAL */
+            CHECK(meter.loudnessGlobal() == -HUGE_VAL);
+            CHECK(meter.loudnessMomentary() == -HUGE_VAL);
+        }
+        SECTION ("Produces expected output"){
+            constexpr int channels = 2;
+            loudness::Meter<loudness::Mode::EBU_I> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
+            auto sine_wave = sineWave<float>(1000.0, samplerate, num_samples, channels, target);
+            CHECK_NOTHROW(meter.setChannel(0, loudness::Channel::Unused));
+            meter.addFrames(sine_wave, num_samples);
+            /* 3 LU lower since it is treated as mono */
+            CHECK_THAT(meter.loudnessGlobal(), Catch::Matchers::WithinAbs(target - 3.0, 0.1));
+            CHECK_THAT(meter.loudnessMomentary(), Catch::Matchers::WithinAbs(target - 3.0, 0.1));
+        }
+    }
+}
+
 TEST_CASE("Resetting the meter", "[meter][reset]"){
     constexpr long samplerate = 48000;
     constexpr int channels = 2;
@@ -125,53 +239,6 @@ TEMPLATE_LIST_TEST_CASE("At sample rate >= 192000 true peak == sample peak", "[m
     CHECK(meter.truePeak(1) == meter.samplePeak(1));
     CHECK(meter.lastTruePeak(0) == meter.lastSamplePeak(0));
     CHECK(meter.lastTruePeak(1) == meter.lastSamplePeak(1));
-}
-
-TEST_CASE("Test setChannel", "[meter][setChannel][dual-mono]"){
-    constexpr long samplerate = 32000;
-    SECTION("Dual mono"){
-        SECTION ("Allowed for non-mono meters"){
-            loudness::Meter<loudness::Mode::EBU_I> meter{loudness::NumChannels(2), loudness::Samplerate(samplerate)};
-            CHECK_NOTHROW(meter.setChannel(0, loudness::Channel::DualMono));
-        }
-        SECTION ("Produces expected output"){
-            constexpr double target = -23.0;
-            constexpr long num_samples = samplerate;
-            constexpr int channels = 1;
-            loudness::Meter<loudness::Mode::EBU_I> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
-            auto sine_wave = sineWave<float>(1000.0, samplerate, num_samples, channels, target);
-            CHECK_NOTHROW(meter.setChannel(0, loudness::Channel::DualMono));
-            meter.addFrames(sine_wave, num_samples);
-            /* This would have been 3 LU lower for normal mono */
-            CHECK_THAT(meter.loudnessGlobal(), Catch::Matchers::WithinAbs(target, 0.1));
-            CHECK_THAT(meter.loudnessMomentary(), Catch::Matchers::WithinAbs(target, 0.1));
-        }
-    }
-    SECTION("Unused channel"){
-        constexpr double target = -23.0;
-        constexpr long num_samples = samplerate;
-        SECTION ("Only unused channels adds no data"){
-            constexpr int channels = 1;
-            loudness::Meter<loudness::Mode::EBU_I> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
-            auto sine_wave = sineWave<float>(1000.0, samplerate, num_samples, channels, target);
-            // Should this be an error?
-            CHECK_NOTHROW(meter.setChannel(0, loudness::Channel::Unused));
-            meter.addFrames(sine_wave, num_samples);
-            /* No data added, so -HUGE_VAL */
-            CHECK(meter.loudnessGlobal() == -HUGE_VAL);
-            CHECK(meter.loudnessMomentary() == -HUGE_VAL);
-        }
-        SECTION ("Produces expected output"){
-            constexpr int channels = 2;
-            loudness::Meter<loudness::Mode::EBU_I> meter{loudness::NumChannels(channels), loudness::Samplerate(samplerate)};
-            auto sine_wave = sineWave<float>(1000.0, samplerate, num_samples, channels, target);
-            CHECK_NOTHROW(meter.setChannel(0, loudness::Channel::Unused));
-            meter.addFrames(sine_wave, num_samples);
-            /* 3 LU lower since it is treated as mono */
-            CHECK_THAT(meter.loudnessGlobal(), Catch::Matchers::WithinAbs(target - 3.0, 0.1));
-            CHECK_THAT(meter.loudnessMomentary(), Catch::Matchers::WithinAbs(target - 3.0, 0.1));
-        }
-    }
 }
 
 template <class Meter>
