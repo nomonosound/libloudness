@@ -27,8 +27,7 @@ add_library(loudness
 )
 target_include_directories(loudness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_include_directories(loudness PRIVATE ${CMAKE_SOURCE_DIR}/vendor/thread-pool/include)
-target_link_libraries(loudness gcem)
+target_link_libraries(loudness PUBLIC gcem PRIVATE BS_thread_pool)
 
 set_target_properties(loudness PROPERTIES
   SOVERSION ${LOUDNESS_VERSION_MAJOR}
