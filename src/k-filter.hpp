@@ -1,3 +1,5 @@
+/* See LICENSE file for copyright and license details. */
+
 #ifndef LOUDNESS_KFILTER_HPP
 #define LOUDNESS_KFILTER_HPP
 

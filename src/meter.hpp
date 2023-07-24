@@ -1,4 +1,4 @@
-/* See COPYING file for copyright and license details. */
+/* See LICENSE file for copyright and license details. */
 
 #ifndef LOUDNESS_METER_HPP
 #define LOUDNESS_METER_HPP
@@ -8,11 +8,11 @@
  *         ITU-BS.1770 and EBU-R128
  */
 
-#include "defines.hpp"
-#include "detail/meter-impl.hpp"
-
 #include <ranges>
 #include <vector>
+
+#include "defines.hpp"
+#include "detail/meter-impl.hpp"
 
 namespace loudness {
     template <Mode mode>

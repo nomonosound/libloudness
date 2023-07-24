@@ -1,15 +1,18 @@
-#include "meter.hpp"
-#include "test-utilities.hpp"
+/* See LICENSE file for copyright and license details. */
+
 #include <algorithm>
+#include <numeric>
+
 #include <catch2/benchmark/catch_benchmark.hpp>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include <numeric>
-
 #include <sndfile.h>
+
+#include "meter.hpp"
+#include "test-utilities.hpp"
 
 TEMPLATE_TEST_CASE_SIG("EBU Tech3341 I-Mode test cases", "[Tech3341][EBU][integrated][median]",
                    ((typename T, loudness::Mode mode), T, mode),

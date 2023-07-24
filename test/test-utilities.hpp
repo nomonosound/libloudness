@@ -1,10 +1,14 @@
+/* See LICENSE file for copyright and license details. */
+
 #ifndef LOUDNESS_TEST_UTILITIES
 #define LOUDNESS_TEST_UTILITIES
+
 #include <algorithm>
 #include <cassert>
-#include <catch2/matchers/catch_matchers_templated.hpp>
 #include <cmath>
 #include <vector>
+
+#include <catch2/matchers/catch_matchers_templated.hpp>
 
 #include "utils.hpp"
 

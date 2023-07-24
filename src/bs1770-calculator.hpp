@@ -1,3 +1,5 @@
+/* See LICENSE file for copyright and license details. */
+
 #ifndef LOUDNESS_BS1770_CALCULATOR_HPP
 #define LOUDNESS_BS1770_CALCULATOR_HPP
 

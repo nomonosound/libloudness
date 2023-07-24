@@ -1,13 +1,13 @@
-/* See COPYING file for copyright and license details. */
+/* See LICENSE file for copyright and license details. */
 
 #ifndef LOUDNESS_DETAIL_METER_IMPL_HPP
 #define LOUDNESS_DETAIL_METER_IMPL_HPP
 
-
-#include "defines.hpp"
 #include <cstddef>
 #include <memory>
 #include <vector>
+
+#include "defines.hpp"
 
 namespace loudness::detail {
     class Meter {

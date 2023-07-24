@@ -1,10 +1,12 @@
+/* See LICENSE file for copyright and license details. */
+
 #include "interpolator.hpp"
 
+#include <cassert>
 #include <cmath>
 #include <numbers>
 
 #include "utils.hpp"
-#include <cassert>
 
 namespace loudness {
     namespace {

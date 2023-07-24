@@ -1,8 +1,11 @@
+/* See LICENSE file for copyright and license details. */
+
 #ifndef LOUDNESS_CONSTANTS_HPP
 #define LOUDNESS_CONSTANTS_HPP
 
-#include "utils.hpp"
 #include <gcem.hpp>
+
+#include "utils.hpp"
 
 namespace loudness {
     constexpr double relative_gate_LU = -10.0;

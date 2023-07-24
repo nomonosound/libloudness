@@ -1,3 +1,5 @@
+/* See LICENSE file for copyright and license details. */
+
 #include "bs1770-calculator.hpp"
 
 #include <algorithm>

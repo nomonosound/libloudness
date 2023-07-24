@@ -1,4 +1,4 @@
-/* See COPYING file for copyright and license details. */
+/* See LICENSE file for copyright and license details. */
 
 #include "detail/meter-impl.hpp"
 
@@ -10,6 +10,7 @@
 #include <type_traits>
 #include <vector>
 
+#include <BS_thread_pool.hpp>
 #include <gcem.hpp>
 
 #include "bs1770-calculator.hpp"
@@ -18,7 +19,6 @@
 #include "k-filter.hpp"
 #include "utils.hpp"
 
-#include "BS_thread_pool.hpp"
 
 namespace loudness::detail {
     struct Impl {

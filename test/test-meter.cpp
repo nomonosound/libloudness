@@ -1,11 +1,14 @@
+/* See LICENSE file for copyright and license details. */
+
 #include <algorithm>
+#include <list>
+#include <numeric>
+
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <catch2/matchers/catch_matchers_exception.hpp>
-#include <list>
-#include <numeric>
 
 #include "meter.hpp"
 #include "test-utilities.hpp"
