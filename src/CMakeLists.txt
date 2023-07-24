@@ -1,5 +1,5 @@
-set(BUILD_STATIC_LIBS       ON  CACHE BOOL "Build static library")
-set(WITH_STATIC_PIC         OFF CACHE BOOL "Compile static library with -fPIC flag")
+option(BUILD_STATIC_LIBS "Build static library" ON)
+option(WITH_STATIC_PIC "Compile static library with -fPIC flag" OFF)
 
 if(MSVC)
   add_definitions(-D_USE_MATH_DEFINES)
@@ -25,7 +25,7 @@ add_library(loudness
   meter.hpp
   utils.hpp
 )
-target_include_directories(loudness INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(loudness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_include_directories(loudness PRIVATE ${CMAKE_SOURCE_DIR}/vendor/thread-pool/include)
 target_link_libraries(loudness gcem)

@@ -2,7 +2,7 @@
 
 #include "detail/meter-impl.hpp"
 
-#include <BS_thread_pool.hpp>
+#include <BS_thread_pool_light.hpp>
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -78,7 +78,7 @@ namespace loudness::detail {
         std::optional<Interpolator> interpolator_;
         std::unique_ptr<BS1770Calculator> bs1770_calculator_;
 
-        std::optional<BS::thread_pool> pool_;
+        std::optional<BS::thread_pool_light> pool_;
         Mode mode_;
     };
 
