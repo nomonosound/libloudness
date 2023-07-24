@@ -9,24 +9,19 @@
 #include <ranges>
 #include <vector>
 
-
 #if defined(__SSE2_MATH__) || defined(_M_X64) || _M_IX86_FP >= 2
 // TODO: Add support for arm
 #include <immintrin.h>
 
 class ScopedFTZ {
 public:
-    ScopedFTZ() noexcept: mxcsr_(_mm_getcsr())
-    {
-        _mm_setcsr(mxcsr_ | _MM_FLUSH_ZERO_ON | _MM_DENORMALS_ZERO_ON);
-    }
-    ~ScopedFTZ() noexcept {
-        _mm_setcsr(mxcsr_);
-    }
+    ScopedFTZ() noexcept : mxcsr_(_mm_getcsr()) { _mm_setcsr(mxcsr_ | _MM_FLUSH_ZERO_ON | _MM_DENORMALS_ZERO_ON); }
+    ~ScopedFTZ() noexcept { _mm_setcsr(mxcsr_); }
     ScopedFTZ& operator=(const ScopedFTZ&) = delete;
     ScopedFTZ& operator=(ScopedFTZ&&) = delete;
     ScopedFTZ(const ScopedFTZ&) = delete;
     ScopedFTZ(ScopedFTZ&&) = delete;
+
 private:
     const unsigned int mxcsr_;
 };
@@ -83,7 +78,7 @@ namespace loudness {
     inline auto medianInPlace(std::ranges::random_access_range auto&& range)
     {
         const size_t n = range.size() / 2;
-        if (n == 0) [[unlikely]]{
+        if (n == 0) [[unlikely]] {
             return -HUGE_VAL;
         }
         std::ranges::nth_element(range, range.begin() + n);
@@ -99,17 +94,18 @@ namespace loudness {
     }
 
     template <int div, std::integral T>
-        requires (div % 2 == 0 && div > 0)
-    constexpr T roundedDivide(T number) {
-        if constexpr (std::unsigned_integral<T>){
+        requires(div % 2 == 0 && div > 0)
+    constexpr T roundedDivide(T number)
+    {
+        if constexpr (std::unsigned_integral<T>) {
             return (number + div / 2) / div;
-        } else {
-            if (number >= 0){
+        }
+        else {
+            if (number >= 0) {
                 return (number + div / 2) / div;
-            } else {
-                return (number - div / 2) / div;
             }
+            return (number - div / 2) / div;
         }
     }
-} // namespace loudness
+}  // namespace loudness
 #endif  // LOUDNESS_UTILS_HPP

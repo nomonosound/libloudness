@@ -45,45 +45,42 @@ namespace loudness {
         float peak = 0.f;
         auto buf_i = chan_data_[chan].index;
 
-        if constexpr (not std::is_pointer_v<T>){
+        if constexpr (not std::is_pointer_v<T>) {
             in_data += chan;
         }
         for (std::size_t frame = 0; frame < frames; ++frame) {
-                /* Add sample to delay buffer */
-                if constexpr (std::is_pointer_v<T>){
-                    using U = std::remove_pointer_t<T>;
-                    if constexpr (std::floating_point<U>){
-                        buffer[buf_i] = static_cast<float>(in_data[chan][frame]);
-                    } else {
-                        buffer[buf_i] = static_cast<float>(static_cast<double>(in_data[chan][frame]) / getScalingFactor<U>());
-                    }
-                } else {
-                    if constexpr (std::floating_point<T>){
-                        buffer[buf_i] = static_cast<float>(*in_data);
-                    } else {
-                        buffer[buf_i] = static_cast<float>(static_cast<double>(*in_data) / getScalingFactor<T>());
-                    }
-                    in_data += chan_data_.size();
+            /* Add sample to delay buffer */
+            if constexpr (std::is_pointer_v<T>) {
+                using U = std::remove_pointer_t<T>;
+                if constexpr (std::floating_point<U>) {
+                    buffer[buf_i] = static_cast<float>(in_data[chan][frame]);
                 }
+                else {
+                    buffer[buf_i] =
+                        static_cast<float>(static_cast<double>(in_data[chan][frame]) / getScalingFactor<U>());
+                }
+            }
+            else {
+                if constexpr (std::floating_point<T>) {
+                    buffer[buf_i] = static_cast<float>(*in_data);
+                }
+                else {
+                    buffer[buf_i] = static_cast<float>(static_cast<double>(*in_data) / getScalingFactor<T>());
+                }
+                in_data += chan_data_.size();
+            }
 
-                /* Apply coefficients */
-                for (const auto& coeffs : filter_) {
-                    /* The accumulation is split over the seam in the circular buffer */
-                    float acc = std::transform_reduce(
-                                buffer.begin() + buf_i + 1,
-                                buffer.end(),
-                                coeffs.cbegin(),
-                                std::transform_reduce(
-                                    coeffs.cbegin() + coeffs.size() - 1 - buf_i,
-                                    coeffs.cend(),
-                                    buffer.begin(),
-                                    0.f
-                                ));
-                    acc = std::abs(acc);
-                    if (acc > peak) {
-                        peak = acc;
-                    }
+            /* Apply coefficients */
+            for (const auto& coeffs : filter_) {
+                /* The accumulation is split over the seam in the circular buffer */
+                float acc = std::transform_reduce(buffer.begin() + buf_i + 1, buffer.end(), coeffs.cbegin(),
+                                                  std::transform_reduce(coeffs.cbegin() + coeffs.size() - 1 - buf_i,
+                                                                        coeffs.cend(), buffer.begin(), 0.f));
+                acc = std::abs(acc);
+                if (acc > peak) {
+                    peak = acc;
                 }
+            }
             ++buf_i;
             if (buf_i == buffer.size()) {
                 buf_i = 0;
@@ -92,5 +89,5 @@ namespace loudness {
         chan_data_[chan].index = buf_i;
         chan_data_[chan].peak = peak;
     }
-} // namespace loudness
+}  // namespace loudness
 #endif  // LOUDNESS_INTERPOLATOR_HPP

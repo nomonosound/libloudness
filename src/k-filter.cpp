@@ -5,10 +5,9 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <gcem.hpp>
 #include <numbers>
 #include <numeric>
-
-#include <gcem.hpp>
 
 namespace loudness {
     KFilter::KFilter(double samplerate, unsigned int channels) : v_(channels, filter_state{})
@@ -78,4 +77,4 @@ namespace loudness {
         v_[channel][2] = std::abs(v_[channel][2]) < std::numeric_limits<double>::min() ? 0.0 : v_[channel][2];
         v_[channel][1] = std::abs(v_[channel][1]) < std::numeric_limits<double>::min() ? 0.0 : v_[channel][1];
     }
-} // namespace loudness
+}  // namespace loudness

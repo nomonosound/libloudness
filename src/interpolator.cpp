@@ -10,7 +10,8 @@
 
 namespace loudness {
     namespace {
-        auto createFilter(unsigned int taps, unsigned int factor) {
+        auto createFilter(unsigned int taps, unsigned int factor)
+        {
             static constexpr double almost_zero = 0.000001;
             std::vector<std::vector<float>> filter(factor - 1);
             for (unsigned int j = taps; j-- > 0;) {
@@ -28,21 +29,22 @@ namespace loudness {
                 /* Put the coefficient into the correct subfilter.
                  * First factor is skipped, none of the others have zeros.
                  */
-                filter[f-1].push_back(static_cast<float>(c));
+                filter[f - 1].push_back(static_cast<float>(c));
             }
             return filter;
         }
-    } // namespace
+    }  // namespace
 
     Interpolator::Interpolator(unsigned int taps, unsigned int factor, unsigned int channels)
         : filter_(createFilter(taps, factor)),
           chan_data_(channels, {.buffer = std::vector<float>((taps - 1) / factor), .index = 0, .peak = 0.0})
     {
-        assert(taps % 2 == 1); // Some optimizations assume odd number of taps
+        assert(taps % 2 == 1);  // Some optimizations assume odd number of taps
     }
 
-    double Interpolator::peak(unsigned int channel) const {
+    double Interpolator::peak(unsigned int channel) const
+    {
         assert(channel < chan_data_.size());
         return chan_data_[channel].peak;
     }
-} // namespace loudness
+}  // namespace loudness

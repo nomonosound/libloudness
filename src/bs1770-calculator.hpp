@@ -72,5 +72,5 @@ namespace loudness {
         std::array<unsigned long, HISTOGRAM_SIZE> block_energy_histogram{};
         std::array<unsigned long, HISTOGRAM_SIZE> short_term_block_energy_histogram{};
     };
-} // namespace loudness
+}  // namespace loudness
 #endif  // LOUDNESS_BS1770_CALCULATOR_HPP

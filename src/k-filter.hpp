@@ -30,5 +30,5 @@ namespace loudness {
         /** one filter_state per channel. */
         std::vector<filter_state> v_;
     };
-} // namespace loudness
+}  // namespace loudness
 #endif  // LOUDNESS_KFILTER_HPP

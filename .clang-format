@@ -1,6 +1,7 @@
 BasedOnStyle:  Google
 IndentWidth:     4
 ColumnLimit:     120
+AllowShortLoopsOnASingleLine: true
 AccessModifierOffset: -4
 BreakBeforeBraces: Stroustrup
 IncludeBlocks:   Regroup

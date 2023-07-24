@@ -14,7 +14,6 @@ namespace loudness {
     constexpr double relative_gate_factor = gcem::pow(10.0, relative_gate_LU / 10.0);
     constexpr double minus_twenty_decibels = gcem::pow(10.0, -20.0 / 10.0);
 
-
     constexpr int milliseconds_in_second = 1000;
 
     constexpr int subblocks_in_s = 10;
@@ -29,12 +28,11 @@ namespace loudness {
     static_assert(st_subblocks >= m_subblocks);
     static_assert(st_subblocks > st_subblock_overlap);
 
-
-    constexpr int momentary_block_ms = m_subblocks*subblock_ms;
-    constexpr int shortterm_block_ms = st_subblocks*subblock_ms;
+    constexpr int momentary_block_ms = m_subblocks * subblock_ms;
+    constexpr int shortterm_block_ms = st_subblocks * subblock_ms;
 
     constexpr int m_block_overlap_ms = subblock_ms;
     constexpr int st_block_overlap_ms = st_subblock_overlap * subblock_ms;
-} // namespace loudness
+}  // namespace loudness
 
-#endif // LOUDNESS_CONSTANTS_HPP
+#endif  // LOUDNESS_CONSTANTS_HPP

@@ -2,23 +2,21 @@
 
 #include "detail/meter-impl.hpp"
 
+#include <BS_thread_pool.hpp>
 #include <algorithm>
 #include <array>
 #include <cassert>
 #include <deque>
+#include <gcem.hpp>
 #include <numeric>
 #include <type_traits>
 #include <vector>
-
-#include <BS_thread_pool.hpp>
-#include <gcem.hpp>
 
 #include "bs1770-calculator.hpp"
 #include "constants.hpp"
 #include "interpolator.hpp"
 #include "k-filter.hpp"
 #include "utils.hpp"
-
 
 namespace loudness::detail {
     struct Impl {
@@ -52,7 +50,7 @@ namespace loudness::detail {
         size_t audio_data_index_ = 0;
 
         /** Data for subblocks for gating blocks */
-        size_t calculated_audio_index_ = 0;
+        size_t calc_audio_index_ = 0;
         std::vector<std::deque<double>> calculated_subblocks_;
 
         /** The channel map. Has as many elements as there are channels. */
@@ -109,7 +107,8 @@ namespace loudness::detail {
         }
         else if ((mode & Mode::EBU_M) == Mode::EBU_M) {
             window_ms_ = momentary_block_ms;
-        } else {
+        }
+        else {
             // Disable window
             window_ms_ = 0;
         }
@@ -170,9 +169,9 @@ namespace loudness::detail {
     void Impl::recalcChannelWeights()
     {
         channel_weight_.clear();
-        for (const auto& channel : channel_map_){
+        for (const auto& channel : channel_map_) {
             switch (channel) {
-            case Channel::Mp110: case Channel::Mm110: case Channel::Mp060: case Channel::Mm060: case Channel::Mp090: case  Channel::Mm090:
+            case Channel::Mp110: case Channel::Mm110: case Channel::Mp060: case Channel::Mm060: case Channel::Mp090: case Channel::Mm090:
                 channel_weight_.push_back(1.41);
                 break;
             case Channel::DualMono:
@@ -200,7 +199,7 @@ namespace loudness::detail {
         needed_frames_ = samples_in_100ms_ * m_subblocks;
         /* start at the beginning of the buffer */
         audio_data_index_ = 0;
-        calculated_audio_index_ = 0;
+        calc_audio_index_ = 0;
         /* reset short term frame counter */
         short_term_frame_counter_ = 0;
     }
@@ -228,35 +227,39 @@ namespace loudness::detail {
                 continue;
             }
             double* audio = audio_data_[c].data() + audio_data_index_;
-            if constexpr (std::is_pointer_v<T>){
-                std::transform(src[c] + offset, src[c] + offset + frames, audio,[this, c](auto val){
-                    double filtered = k_filter_.apply(static_cast<double>(val) / getScalingFactor<std::remove_pointer_t<T>>(), c);
+            if constexpr (std::is_pointer_v<T>) {
+                std::transform(src[c] + offset, src[c] + offset + frames, audio, [this, c](auto val) {
+                    double filtered =
+                        k_filter_.apply(static_cast<double>(val) / getScalingFactor<std::remove_pointer_t<T>>(), c);
                     return filtered * filtered;
                 });
-            } else {
+            }
+            else {
                 for (size_t i = 0; i < frames; ++i) {
-                    audio[i] = k_filter_.apply(static_cast<double>(src[(i + offset) * channels + c]) / getScalingFactor<T>(), c);
+                    audio[i] = k_filter_.apply(
+                        static_cast<double>(src[(i + offset) * channels + c]) / getScalingFactor<T>(), c);
                     audio[i] *= audio[i];
                 }
             }
-            #ifdef MANUALLY_FTZ
+#ifdef MANUALLY_FTZ
             pimpl->filter.manuallyFTZ(c);
-            #endif
+#endif
         }
         audio_data_index_ += frames;
     }
 
-
-    template<ConstData T>
+    template <ConstData T>
     void Impl::findSamplePeaks(T* src, size_t frames)
     {
         const size_t channels = sample_peak_.size();
-        for (size_t chan = 0; chan < channels; ++chan){
-            if constexpr (std::is_pointer_v<T>){
+        for (size_t chan = 0; chan < channels; ++chan) {
+            if constexpr (std::is_pointer_v<T>) {
                 using U = std::remove_pointer_t<T>;
                 auto minmax = std::minmax_element(src[chan], src[chan] + frames);
-                last_sample_peak_[chan] = static_cast<double>(std::max<U>(-*minmax.first, *minmax.second)) / getScalingFactor<U>();
-            } else {
+                last_sample_peak_[chan] =
+                    static_cast<double>(std::max<U>(-*minmax.first, *minmax.second)) / getScalingFactor<U>();
+            }
+            else {
                 const size_t channels = sample_peak_.size();
                 double max = 0.0;
                 for (size_t i = 0; i < frames; ++i) {
@@ -284,10 +287,12 @@ namespace loudness::detail {
             if (audio_data_index_ < interval_frames) {
                 // Read over the seam in the circular buffer
                 channel_sum += std::reduce(audio_data_[c].cbegin(), audio_data_[c].cbegin() + audio_data_index_, 0.0) +
-                               std::reduce(audio_data_[c].crbegin(), audio_data_[c].crbegin() + interval_frames - audio_data_index_, 0.0);
+                               std::reduce(audio_data_[c].crbegin(),
+                                           audio_data_[c].crbegin() + interval_frames - audio_data_index_, 0.0);
             }
             else {
-                channel_sum += std::reduce(audio_data_[c].cbegin() + audio_data_index_ - interval_frames, audio_data_[c].cbegin() + audio_data_index_, 0.0);
+                channel_sum += std::reduce(audio_data_[c].cbegin() + audio_data_index_ - interval_frames,
+                                           audio_data_[c].cbegin() + audio_data_index_, 0.0);
             }
             channel_sum *= channel_weight_[c];
 
@@ -303,9 +308,7 @@ namespace loudness::detail {
         size_t src_index = 0;
         while (frames > 0) {
             if (frames >= needed_frames_) {
-                std::visit([this, src_index](auto&& src){
-                    filter(src, src_index, needed_frames_);
-                }, src);
+                std::visit([this, src_index](auto&& src) { filter(src, src_index, needed_frames_); }, src);
                 src_index += needed_frames_;
                 frames -= needed_frames_;
                 /* calculate the new gating block */
@@ -327,14 +330,12 @@ namespace loudness::detail {
                 if (audio_data_index_ == audio_data_frames_) {
                     audio_data_index_ = 0;
                 }
-                if (calculated_audio_index_ == audio_data_frames_) {
-                    calculated_audio_index_ = 0;
+                if (calc_audio_index_ == audio_data_frames_) {
+                    calc_audio_index_ = 0;
                 }
             }
             else {
-                std::visit([this, src_index, frames](auto&& src){
-                    filter(src, src_index, frames);
-                }, src);
+                std::visit([this, src_index, frames](auto&& src) { filter(src, src_index, frames); }, src);
                 if ((mode_ & Mode::EBU_LRA) == Mode::EBU_LRA) {
                     short_term_frame_counter_ += frames;
                 }
@@ -346,14 +347,14 @@ namespace loudness::detail {
 
     void Impl::calcSubBlocks()
     {
-        for (;calculated_audio_index_ + samples_in_100ms_ <= audio_data_index_; calculated_audio_index_ += samples_in_100ms_){
+        for (; calc_audio_index_ + samples_in_100ms_ <= audio_data_index_; calc_audio_index_ += samples_in_100ms_) {
             for (size_t c = 0; c < channel_map_.size(); ++c) {
-                if (channel_map_[c] == Channel::Unused){
+                if (channel_map_[c] == Channel::Unused) {
                     continue;
                 }
                 calculated_subblocks_[c].push_back(
-                    std::reduce(audio_data_[c].cbegin() + calculated_audio_index_, audio_data_[c].cbegin() + calculated_audio_index_ + samples_in_100ms_, 0.0)
-                );
+                    std::reduce(audio_data_[c].cbegin() + calc_audio_index_,
+                                audio_data_[c].cbegin() + calc_audio_index_ + samples_in_100ms_, 0.0));
                 if (calculated_subblocks_[c].size() > num_subblocks) [[likely]] {
                     calculated_subblocks_[c].pop_front();
                 }
@@ -365,11 +366,12 @@ namespace loudness::detail {
     {
         double sum = 0.0;
         for (size_t c = 0; c < channel_weight_.size(); ++c) {
-            if (channel_map_[c] != Channel::Unused){
-                sum += channel_weight_[c] * std::reduce(calculated_subblocks_[c].crbegin(), calculated_subblocks_[c].crbegin() + m_subblocks, 0.0);
+            if (channel_map_[c] != Channel::Unused) {
+                sum += channel_weight_[c] * std::reduce(calculated_subblocks_[c].crbegin(),
+                                                        calculated_subblocks_[c].crbegin() + m_subblocks, 0.0);
             }
         }
-        sum /= static_cast<double>(m_subblocks*samples_in_100ms_);
+        sum /= static_cast<double>(m_subblocks * samples_in_100ms_);
         if (sum >= absolute_gate) [[likely]] {
             bs1770_calculator_->addBlock(sum);
         }
@@ -379,11 +381,12 @@ namespace loudness::detail {
     {
         double sum = 0.0;
         for (size_t c = 0; c < channel_weight_.size(); ++c) {
-            if (channel_map_[c] != Channel::Unused){
-                sum += channel_weight_[c] * std::reduce(calculated_subblocks_[c].crbegin(), calculated_subblocks_[c].crbegin() + st_subblocks, 0.0);
+            if (channel_map_[c] != Channel::Unused) {
+                sum += channel_weight_[c] * std::reduce(calculated_subblocks_[c].crbegin(),
+                                                        calculated_subblocks_[c].crbegin() + st_subblocks, 0.0);
             }
         }
-        sum /= static_cast<double>(st_subblocks*samples_in_100ms_);
+        sum /= static_cast<double>(st_subblocks * samples_in_100ms_);
         if (sum >= absolute_gate) [[likely]] {
             bs1770_calculator_->addShortTermBlock(sum);
         }
@@ -392,24 +395,24 @@ namespace loudness::detail {
     /* Meter */
 
     Meter::Meter(NumChannels channels, Samplerate samplerate, Mode mode)
-        : mode_(mode), channels_(channels.get()), samplerate_(samplerate.get()), pimpl_(std::make_unique<Impl>(channels_, samplerate_, mode))
+        : mode_(mode),
+          channels_(channels.get()),
+          samplerate_(samplerate.get()),
+          pimpl_(std::make_unique<Impl>(channels_, samplerate_, mode))
     {
     }
 
     Meter::~Meter() noexcept = default;
     Meter::Meter(Meter&& other) noexcept = default;
 
-    void Meter::reset()
-    {
-        pimpl_ = std::make_unique<Impl>(channels_, samplerate_, mode_);
-    }
+    void Meter::reset() { pimpl_ = std::make_unique<Impl>(channels_, samplerate_, mode_); }
 
     void Meter::setChannel(unsigned int channel_index, Channel value)
     {
         if (channel_index >= channels_) {
             throw std::out_of_range("Invalid channel index");
         }
-        if (pimpl_->channel_map_[channel_index] != value){
+        if (pimpl_->channel_map_[channel_index] != value) {
             pimpl_->channel_map_[channel_index] = value;
             pimpl_->recalcChannelWeights();
         }
@@ -450,7 +453,7 @@ namespace loudness::detail {
 
     bool Meter::setMaxWindow(unsigned long window_ms)
     {
-        if (window_ms > max_window_ms){
+        if (window_ms > max_window_ms) {
             throw std::domain_error("Requested window too large");
         }
         if ((mode_ & Mode::EBU_S) == Mode::EBU_S && window_ms < shortterm_block_ms) {
@@ -481,65 +484,55 @@ namespace loudness::detail {
         return pimpl_->bs1770_calculator_->setMaxHistory(history_ms);
     }
 
-
     void Meter::addFramesMT(DataType src, size_t frames)
     {
         /* Lazely spin up threads when needed. */
-        if (not pimpl_->pool_.has_value()){
+        if (not pimpl_->pool_.has_value()) {
             pimpl_->pool_.emplace();
         }
 
         if (pimpl_->interpolator_.has_value()) {
-            for (size_t c = 0; c < channels_; ++c){
+            for (size_t c = 0; c < channels_; ++c) {
                 pimpl_->pool_->push_task([this, c, src, frames] {
                     const ScopedFTZ guard;
-                    std::visit([this, c, frames](auto&& src){
-                        pimpl_->interpolator_->process(src, frames, c);
-                    }, src);
+                    std::visit([this, c, frames](auto&& src) { pimpl_->interpolator_->process(src, frames, c); }, src);
                     if (pimpl_->interpolator_->peak(c) > pimpl_->true_peak_[c]) {
                         pimpl_->true_peak_[c] = pimpl_->interpolator_->peak(c);
                     }
                 });
             }
         }
-        if ((mode_ & Mode::EBU_M) == Mode::EBU_M){
+        if ((mode_ & Mode::EBU_M) == Mode::EBU_M) {
             pimpl_->pool_->push_task(&Impl::addFramesLoudness, pimpl_.get(), src, frames);
         }
         // Sample peak is so lightweight it is never worth parallelizing channels
         if ((mode_ & Mode::SamplePeak) == Mode::SamplePeak) {
-            pimpl_->pool_->push_task([this, src, frames]{
-                std::visit([this, frames](auto&& src){
-                    pimpl_->findSamplePeaks(src, frames);
-                }, src);
+            pimpl_->pool_->push_task([this, src, frames] {
+                std::visit([this, frames](auto&& src) { pimpl_->findSamplePeaks(src, frames); }, src);
             });
         }
 
         pimpl_->pool_->wait_for_tasks();
     }
 
-
     void Meter::addFrames(DataType src, size_t frames)
     {
         const ScopedFTZ guard;
         // Find new sample peak
         if ((mode_ & Mode::SamplePeak) == Mode::SamplePeak) {
-            std::visit([this, frames](auto&& src){
-                pimpl_->findSamplePeaks(src, frames);
-            }, src);
+            std::visit([this, frames](auto&& src) { pimpl_->findSamplePeaks(src, frames); }, src);
         }
         // Find new true peak
         if (pimpl_->interpolator_.has_value()) {
-            for (size_t c = 0; c < channels_; ++c){
-                std::visit([this, frames, c](auto&& src){
-                    pimpl_->interpolator_->process(src, frames, c);
-                }, src);
+            for (size_t c = 0; c < channels_; ++c) {
+                std::visit([this, frames, c](auto&& src) { pimpl_->interpolator_->process(src, frames, c); }, src);
                 if (pimpl_->interpolator_->peak(c) > pimpl_->true_peak_[c]) {
                     pimpl_->true_peak_[c] = pimpl_->interpolator_->peak(c);
                 }
             }
         }
 
-        if ((mode_ & Mode::EBU_M) == Mode::EBU_M){
+        if ((mode_ & Mode::EBU_M) == Mode::EBU_M) {
             pimpl_->addFramesLoudness(src, frames);
         }
     }
@@ -558,7 +551,8 @@ namespace loudness::detail {
         return energyToLoudness(relative_threshold);
     }
 
-    double Meter::loudnessGlobal() const {
+    double Meter::loudnessGlobal() const
+    {
         auto [above_thresh_count, block_sum] = pimpl_->bs1770_calculator_->blockCountAndSum();
         if (above_thresh_count == 0) {
             return -HUGE_VAL;
@@ -566,9 +560,11 @@ namespace loudness::detail {
 
         block_sum /= static_cast<double>(above_thresh_count);
 
-        auto [above_rel_counter, gated_loudness] = pimpl_->bs1770_calculator_->loudness(block_sum*relative_gate_factor);
+        auto [above_rel_counter, gated_loudness] =
+            pimpl_->bs1770_calculator_->loudness(block_sum * relative_gate_factor);
 
-        return above_rel_counter == 0 ? -HUGE_VAL : energyToLoudness(gated_loudness / static_cast<double>(above_rel_counter));
+        return above_rel_counter == 0 ? -HUGE_VAL
+                                      : energyToLoudness(gated_loudness / static_cast<double>(above_rel_counter));
     }
 
     double Meter::loudnessMomentary() const
@@ -580,15 +576,19 @@ namespace loudness::detail {
     double Meter::loudnessShortterm() const
     {
         const double energy = pimpl_->energyInInterval(pimpl_->samples_in_100ms_ * st_subblocks);
-        return energy <= 0.0 ? -HUGE_VAL :  energyToLoudness(energy);
+        return energy <= 0.0 ? -HUGE_VAL : energyToLoudness(energy);
     }
 
-    double Meter::loudnessRange() const {
+    double Meter::loudnessRange() const
+    {
         // TODO: Find better solution here, avoiding dynamic cast
         if ((mode_ & Mode::Histogram) == Mode::Histogram) {
-            return HistogramCalculator::loudnessRangeMultiple({dynamic_cast<HistogramCalculator*>(pimpl_->bs1770_calculator_.get())});
-        } else {
-            return  BlockListCalculator::loudnessRangeMultiple({dynamic_cast<BlockListCalculator*>(pimpl_->bs1770_calculator_.get())});
+            return HistogramCalculator::loudnessRangeMultiple(
+                {dynamic_cast<HistogramCalculator*>(pimpl_->bs1770_calculator_.get())});
+        }
+        else {
+            return BlockListCalculator::loudnessRangeMultiple(
+                {dynamic_cast<BlockListCalculator*>(pimpl_->bs1770_calculator_.get())});
         }
     }
 
@@ -664,19 +664,18 @@ namespace loudness::detail {
         if (channel_index >= channels_) {
             throw std::out_of_range("Invalid channel index");
         }
-        if (pimpl_->interpolator_.has_value()){
+        if (pimpl_->interpolator_.has_value()) {
             return std::max(static_cast<double>(pimpl_->interpolator_->peak(channel_index)),
                             pimpl_->last_sample_peak_[channel_index]);
         }
         return pimpl_->last_sample_peak_[channel_index];
-
     }
 
     double Meter::loudnessRangeMultipleHist(const std::vector<const Meter*>& meters)
     {
         std::vector<const HistogramCalculator*> hists;
         hists.reserve(meters.size());
-        for (const auto& meter : meters){
+        for (const auto& meter : meters) {
             hists.push_back(dynamic_cast<const HistogramCalculator*>(meter->pimpl_->bs1770_calculator_.get()));
         }
         return HistogramCalculator::loudnessRangeMultiple(hists);
@@ -686,7 +685,7 @@ namespace loudness::detail {
     {
         std::vector<const BlockListCalculator*> lists;
         lists.reserve(meters.size());
-        for (const auto& meter : meters){
+        for (const auto& meter : meters) {
             lists.push_back(dynamic_cast<BlockListCalculator*>(meter->pimpl_->bs1770_calculator_.get()));
         }
         return BlockListCalculator::loudnessRangeMultiple(lists);
@@ -722,4 +721,4 @@ namespace loudness::detail {
         gated_loudness /= static_cast<double>(above_thresh_counter);
         return energyToLoudness(gated_loudness);
     }
-} // namespace loudness::detail
+}  // namespace loudness::detail
