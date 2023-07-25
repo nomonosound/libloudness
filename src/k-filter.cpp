@@ -50,7 +50,7 @@ namespace loudness {
         a_[4] = pa[2] * ra[2];
     }
 
-    double KFilter::apply(double src, unsigned int channel)
+    double KFilter::apply(double src, std::size_t channel)
     {
         // NB! Critical inner loop, benchmark when modifying anything
         v_[channel][4] = v_[channel][3];

@@ -10,7 +10,7 @@ namespace loudness {
     class KFilter {
     public:
         KFilter(double samplerate, unsigned int channels);
-        double apply(double src, unsigned int channel);
+        double apply(double src, std::size_t channel);
 
         /**
          * @brief manually flush floats to zero for channel

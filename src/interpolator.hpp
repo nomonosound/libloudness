@@ -25,7 +25,7 @@ namespace loudness {
         [[nodiscard]] double peak(unsigned int channel) const;
         [[nodiscard]] double peak() const;
 
-        [[nodiscard]] unsigned int channels() const { return chan_data_.size(); }
+        [[nodiscard]] unsigned int channels() const { return static_cast<unsigned int>(chan_data_.size()); }
 
     private:
         struct ChannelData {

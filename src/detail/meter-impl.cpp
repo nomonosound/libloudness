@@ -494,7 +494,7 @@ namespace loudness::detail {
         }
 
         if (pimpl_->interpolator_.has_value()) {
-            for (size_t c = 0; c < channels_; ++c) {
+            for (unsigned int c = 0; c < channels_; ++c) {
                 pimpl_->pool_->push_task([this, c, src, frames] {
                     const ScopedFTZ guard;
                     std::visit([this, c, frames](auto&& src) { pimpl_->interpolator_->process(src, frames, c); }, src);
@@ -526,7 +526,7 @@ namespace loudness::detail {
         }
         // Find new true peak
         if (pimpl_->interpolator_.has_value()) {
-            for (size_t c = 0; c < channels_; ++c) {
+            for (unsigned int c = 0; c < channels_; ++c) {
                 std::visit([this, frames, c](auto&& src) { pimpl_->interpolator_->process(src, frames, c); }, src);
                 if (pimpl_->interpolator_->peak(c) > pimpl_->true_peak_[c]) {
                     pimpl_->true_peak_[c] = pimpl_->interpolator_->peak(c);
