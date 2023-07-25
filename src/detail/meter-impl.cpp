@@ -9,6 +9,7 @@
 #include <deque>
 #include <gcem.hpp>
 #include <numeric>
+#include <optional>
 #include <type_traits>
 #include <vector>
 
