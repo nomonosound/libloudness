@@ -1,11 +1,8 @@
 option(BUILD_STATIC_LIBS "Build static library" ON)
 option(WITH_STATIC_PIC "Compile static library with -fPIC flag" OFF)
 
-if(MSVC)
-  add_definitions(-D_USE_MATH_DEFINES)
-  if(CMAKE_SIZEOF_VOID_P LESS 8)
-    add_definitions(/arch:SSE2)
-  endif()
+if(MSVC AND (CMAKE_SIZEOF_VOID_P LESS 8))
+  add_compile_options(/arch:SSE2)
 endif()
 
 set(LOUDNESS_VERSION_MAJOR 0)

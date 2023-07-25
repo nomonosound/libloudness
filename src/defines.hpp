@@ -1,6 +1,6 @@
-#ifndef LOUDNESS_DEFINES_HPP
 /* See LICENSE file for copyright and license details. */
 
+#ifndef LOUDNESS_DEFINES_HPP
 #define LOUDNESS_DEFINES_HPP
 
 #include <cstdint>

@@ -404,6 +404,7 @@ namespace loudness::detail {
 
     Meter::~Meter() noexcept = default;
     Meter::Meter(Meter&& other) noexcept = default;
+    Meter& Meter::operator=(Meter&& other) noexcept = default;
 
     void Meter::reset() { pimpl_ = std::make_unique<Impl>(channels_, samplerate_, mode_); }
 

@@ -15,7 +15,7 @@ namespace loudness::detail {
         Meter(NumChannels channels, Samplerate samplerate, Mode mode);
         ~Meter() noexcept;
         Meter(Meter&& other) noexcept;
-        Meter& operator=(Meter&& other) = delete;
+        Meter& operator=(Meter&& other) noexcept;
         Meter(const Meter&) = delete;
         Meter& operator=(const Meter&) = delete;
 
@@ -66,7 +66,8 @@ namespace loudness::detail {
         [[nodiscard]] static double loudnessRangeMultipleBlocks(const std::vector<const Meter*>& meters);
 
     private:
-        const Mode mode_;                    /**< The mode of the meter */
+        // TODO: If header only library, mode can be const
+        Mode mode_;                          /**< The mode of the meter */
         unsigned int channels_;              /**< The number of channels. */
         unsigned long samplerate_;           /**< The sample rate. */
         std::unique_ptr<struct Impl> pimpl_; /**< Internal state. */
