@@ -7,7 +7,7 @@
 #include <memory>
 #include <vector>
 
-#include "defines.hpp"
+#include "loudness/defines.hpp"
 
 namespace loudness::detail {
     class Meter {

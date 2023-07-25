@@ -9,7 +9,7 @@
 #include <cmath>
 #include <vector>
 
-#include "utils.hpp"
+#include "loudness/utils.hpp"
 
 constexpr unsigned long prime_samplerate = 69313;
 using DataTypes = std::tuple<float, double, int16_t, int32_t>;

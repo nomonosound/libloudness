@@ -1,5 +1,4 @@
-option(BUILD_STATIC_LIBS "Build static library" ON)
-option(WITH_STATIC_PIC "Compile static library with -fPIC flag" OFF)
+option(LOUDNESS_WITH_STATIC_PIC "Compile static library with -fPIC flag" OFF)
 
 if(MSVC AND (CMAKE_SIZEOF_VOID_P LESS 8))
   add_compile_options(/arch:SSE2)
@@ -9,18 +8,18 @@ set(LOUDNESS_VERSION_MAJOR 0)
 set(LOUDNESS_VERSION 0.1.0)
 
 add_library(loudness
-  bs1770-calculator.cpp
-  bs1770-calculator.hpp
-  constants.hpp
-  defines.hpp
-  detail/meter-impl.cpp
-  detail/meter-impl.hpp
-  interpolator.cpp
-  interpolator.hpp
-  k-filter.cpp
-  k-filter.hpp
-  meter.hpp
-  utils.hpp
+  loudness/bs1770-calculator.cpp
+  loudness/bs1770-calculator.hpp
+  loudness/constants.hpp
+  loudness/defines.hpp
+  loudness/detail/meter-impl.cpp
+  loudness/detail/meter-impl.hpp
+  loudness/interpolator.cpp
+  loudness/interpolator.hpp
+  loudness/k-filter.cpp
+  loudness/k-filter.hpp
+  loudness/meter.hpp
+  loudness/utils.hpp
 )
 target_include_directories(loudness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -32,12 +31,13 @@ set_target_properties(loudness PROPERTIES
 )
 
 if(NOT BUILD_SHARED_LIBS)
-  if(WITH_STATIC_PIC)
+  if(LOUDNESS_WITH_STATIC_PIC)
     set_property(TARGET loudness PROPERTY POSITION_INDEPENDENT_CODE ON)
   endif()
 endif()
 
-install(FILES meter.hpp defines.hpp detail/meter-impl.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/loudness)
+install(FILES loudness/meter.hpp loudness/defines.hpp loudness/detail/meter-impl.hpp
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/loudness)
 install(TARGETS loudness
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

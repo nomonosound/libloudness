@@ -11,8 +11,8 @@
 #include <ranges>
 #include <vector>
 
-#include "defines.hpp"
-#include "detail/meter-impl.hpp"
+#include "loudness/defines.hpp"
+#include "loudness/detail/meter-impl.hpp"
 
 namespace loudness {
     template <Mode mode>

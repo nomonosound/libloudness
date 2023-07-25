@@ -9,7 +9,7 @@
 #include <list>
 #include <numeric>
 
-#include "meter.hpp"
+#include "loudness/meter.hpp"
 #include "test-utilities.hpp"
 
 TEST_CASE("Test configuration", "[meter][parameters][setChannel]")

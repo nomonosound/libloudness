@@ -7,7 +7,7 @@
 #include <numeric>
 #include <vector>
 
-#include "utils.hpp"
+#include "loudness/utils.hpp"
 
 namespace loudness {
     /**

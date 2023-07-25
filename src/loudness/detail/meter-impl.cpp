@@ -1,6 +1,6 @@
 /* See LICENSE file for copyright and license details. */
 
-#include "detail/meter-impl.hpp"
+#include "meter-impl.hpp"
 
 #include <BS_thread_pool_light.hpp>
 #include <algorithm>
@@ -13,11 +13,11 @@
 #include <type_traits>
 #include <vector>
 
-#include "bs1770-calculator.hpp"
-#include "constants.hpp"
-#include "interpolator.hpp"
-#include "k-filter.hpp"
-#include "utils.hpp"
+#include "loudness/bs1770-calculator.hpp"
+#include "loudness/constants.hpp"
+#include "loudness/interpolator.hpp"
+#include "loudness/k-filter.hpp"
+#include "loudness/utils.hpp"
 
 namespace loudness::detail {
     struct Impl {

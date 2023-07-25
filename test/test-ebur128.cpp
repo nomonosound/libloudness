@@ -11,7 +11,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <numeric>
 
-#include "meter.hpp"
+#include "loudness/meter.hpp"
 #include "test-utilities.hpp"
 
 TEMPLATE_TEST_CASE_SIG("EBU Tech3341 I-Mode test cases", "[Tech3341][EBU][integrated][median]",
