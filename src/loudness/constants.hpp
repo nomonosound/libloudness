@@ -10,6 +10,7 @@
 namespace loudness {
     constexpr double relative_gate_LU = -10.0;
     constexpr double absolute_gate_LUFS = -70.0;
+
     constexpr double absolute_gate = loudnessToEnergy(absolute_gate_LUFS);
     constexpr double relative_gate_factor = gcem::pow(10.0, relative_gate_LU / 10.0);
     constexpr double minus_twenty_decibels = gcem::pow(10.0, -20.0 / 10.0);

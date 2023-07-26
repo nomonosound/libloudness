@@ -12,13 +12,18 @@
 
 namespace loudness {
 
+    constexpr double low_percent = 0.10;
+    constexpr double high_percent = 0.95;
+
     /* HistogramCalculator */
+
+    constexpr double bin_size_LU = 0.1;
 
     consteval std::array<double, HistogramCalculator::HISTOGRAM_SIZE> getHistogramEnergies()
     {
         std::array<double, HistogramCalculator::HISTOGRAM_SIZE> histogram_energies;
         for (unsigned int i = 0; i < histogram_energies.size(); ++i) {
-            histogram_energies[i] = loudnessToEnergy(static_cast<double>(i) / 10.0 + absolute_gate_LUFS + 0.05);
+            histogram_energies[i] = loudnessToEnergy(static_cast<double>(i) * bin_size_LU + absolute_gate_LUFS + bin_size_LU / 2);
         }
         return histogram_energies;
     }
@@ -27,7 +32,7 @@ namespace loudness {
 
     constexpr std::size_t findHistogramIndex(double energy)
     {
-        constexpr double max = loudnessToEnergy((HistogramCalculator::HISTOGRAM_SIZE - 1) / 10.0 + absolute_gate_LUFS);
+        constexpr double max = loudnessToEnergy((HistogramCalculator::HISTOGRAM_SIZE - 1) * bin_size_LU + absolute_gate_LUFS);
         if (energy >= max) [[unlikely]] {
             return HistogramCalculator::HISTOGRAM_SIZE - 1;
         }
@@ -35,7 +40,7 @@ namespace loudness {
             return 0;
         }
         else [[likely]] {
-            return static_cast<std::size_t>(10.0 * (energyToLoudness(energy) - absolute_gate_LUFS));
+            return static_cast<std::size_t>((energyToLoudness(energy) - absolute_gate_LUFS) / bin_size_LU);
         }
     }
 
@@ -93,56 +98,53 @@ namespace loudness {
     double HistogramCalculator::loudnessRangeMultiple(const std::vector<const HistogramCalculator*>& histograms)
     {
         std::array<unsigned long, HISTOGRAM_SIZE> hist = {0};
-        std::size_t stl_size = 0;
-        double stl_power = 0.0;
+        std::size_t num_blocks = 0;
+        double power = 0.0;
 
         for (const auto& hist_calc : histograms) {
             for (std::size_t j = 0; j < HISTOGRAM_SIZE; ++j) {
                 hist[j] += hist_calc->short_term_block_energy_histogram[j];
-                stl_size += hist_calc->short_term_block_energy_histogram[j];
-                stl_power += hist_calc->short_term_block_energy_histogram[j] * histogram_energies[j];
+                num_blocks += hist_calc->short_term_block_energy_histogram[j];
+                power += hist_calc->short_term_block_energy_histogram[j] * histogram_energies[j];
             }
         }
-        if (stl_size == 0) {
+        if (num_blocks == 0) {
             return 0.0;
         }
 
-        stl_power /= stl_size;
-        const double stl_integrated = minus_twenty_decibels * stl_power;
+        power /= num_blocks;
+        const double limit_energy = minus_twenty_decibels * power;
 
         std::size_t index;
-        if (stl_integrated < minimum_energy) {
+        if (limit_energy < minimum_energy) {
             index = 0;
         }
         else {
-            index = findHistogramIndex(stl_integrated);
-            if (stl_integrated > histogram_energies[index]) {
+            index = findHistogramIndex(limit_energy);
+            if (limit_energy > histogram_energies[index]) {
                 ++index;
             }
         }
-        stl_size = 0;
-        for (std::size_t j = index; j < HISTOGRAM_SIZE; ++j) {
-            stl_size += hist[j];
-        }
-        if (stl_size == 0) {
+        num_blocks = std::reduce(hist.cbegin() + index, hist.cend(), 0UL);
+        if (num_blocks == 0) {
             return 0.0;
         }
 
-        const auto percentile_low = std::lround((stl_size - 1) * 0.10);
-        const auto percentile_high = std::lround((stl_size - 1) * 0.95);
+        const std::size_t percentile_low = std::lround((num_blocks - 1) * low_percent);
+        const std::size_t percentile_high = std::lround((num_blocks - 1) * high_percent);
 
-        stl_size = 0;
+        num_blocks = 0;
         std::size_t j = index;
-        while (stl_size <= percentile_low) {
-            stl_size += hist[j++];
+        while (num_blocks <= percentile_low) {
+            num_blocks += hist[j++];
         }
-        const double l_en = histogram_energies[j - 1];
-        while (stl_size <= percentile_high) {
-            stl_size += hist[j++];
+        const double low_en = histogram_energies[j - 1];
+        while (num_blocks <= percentile_high) {
+            num_blocks += hist[j++];
         }
-        const double h_en = histogram_energies[j - 1];
+        const double high_en = histogram_energies[j - 1];
 
-        return energyToLoudness(h_en) - energyToLoudness(l_en);
+        return energyToLoudness(high_en) - energyToLoudness(low_en);
     }
 
     std::size_t HistogramCalculator::relative_threshold_index(double relative_threshold)
@@ -229,40 +231,36 @@ namespace loudness {
 
     double BlockListCalculator::loudnessRangeMultiple(const std::vector<const BlockListCalculator*>& block_lists)
     {
-        std::size_t stl_size = 0;
+        std::size_t num_blocks = 0;
         for (const auto& block_list : block_lists) {
-            stl_size += block_list->short_term_block_list_.size();
+            num_blocks += block_list->short_term_block_list_.size();
         }
-        if (stl_size == 0) {
+        if (num_blocks == 0) {
             return 0.0;
         }
 
-        std::vector<double> stl_vector;
-        stl_vector.reserve(stl_size);
+        std::vector<double> blocks;
+        blocks.reserve(num_blocks);
 
         for (const auto& block_list : block_lists) {
-            stl_vector.insert(stl_vector.end(), block_list->short_term_block_list_.begin(),
+            blocks.insert(blocks.end(), block_list->short_term_block_list_.begin(),
                               block_list->short_term_block_list_.end());
         }
 
-        std::sort(stl_vector.begin(), stl_vector.end());
+        std::sort(blocks.begin(), blocks.end());
 
-        const double stl_power = std::reduce(stl_vector.begin(), stl_vector.end(), 0.0) / static_cast<double>(stl_size);
-        const double stl_integrated = minus_twenty_decibels * stl_power;
+        const double power = std::reduce(blocks.begin(), blocks.end(), 0.0) / static_cast<double>(num_blocks);
+        const double limit_energy = minus_twenty_decibels * power;
 
-        double* stl_relgated = stl_vector.data();
-        std::size_t stl_relgated_size = stl_size;
-        while (stl_relgated_size > 0 && *stl_relgated < stl_integrated) {
-            ++stl_relgated;
-            --stl_relgated_size;
+        auto range_begin = std::lower_bound(blocks.begin(), blocks.end(), limit_energy);
+
+        if (range_begin == blocks.end()){
+            return 0.0;
         }
+        const auto range_size = std::distance(range_begin, blocks.end() - 1);
+        const double high_en = range_begin[std::lround(range_size * high_percent)];
+        const double low_en = range_begin[std::lround(range_size * low_percent)];
 
-        if (stl_relgated_size != 0) {
-            const double h_en = stl_relgated[std::lround((stl_relgated_size - 1) * 0.95)];
-            const double l_en = stl_relgated[std::lround((stl_relgated_size - 1) * 0.10)];
-            return energyToLoudness(h_en) - energyToLoudness(l_en);
-        }
-
-        return 0.0;
+        return energyToLoudness(high_en) - energyToLoudness(low_en);
     }
 }  // namespace loudness
