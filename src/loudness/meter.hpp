@@ -1,7 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
-#ifndef LOUDNESS_METER_HPP
-#define LOUDNESS_METER_HPP
+#ifndef LIBLOUDNESS_METER_HPP
+#define LIBLOUDNESS_METER_HPP
 
 /** @file meter.hpp
  *  @brief libloudness - a library for loudness measurements according to
@@ -114,7 +114,7 @@ namespace loudness {
          *                Either 1d interleaved, or 2d ordered channel, samples
          *  @param frames Number of frames. Not number of samples!
          */
-        void addFrames(DataType src, size_t frames) { meter.addFrames(src, frames); }
+        void addFrames(DataType src, std::size_t frames) { meter.addFrames(src, frames); }
 
         /** @brief Multithreaded version of addFrames
          *
@@ -122,7 +122,7 @@ namespace loudness {
          *                Either 1d interleaved, or 2d ordered channel, samples
          *  @param frames Number of frames. Not number of samples!
          */
-        void addFramesMT(DataType src, size_t frames) { meter.addFramesMT(src, frames); }
+        void addFramesMT(DataType src, std::size_t frames) { meter.addFramesMT(src, frames); }
 
         /** @brief Add frames to be processed as ranges of channels
          *
@@ -131,7 +131,7 @@ namespace loudness {
          *  @param frames Number of frames. Not number of samples!
          */
         template <std::ranges::range Range>
-        void addFrames(const Range& src, size_t frames)
+        void addFrames(const Range& src, std::size_t frames)
         {
             meter.addFrames(src, frames);
         }
@@ -143,7 +143,7 @@ namespace loudness {
          *  @param frames Number of frames. Not number of samples!
          */
         template <std::ranges::range Range>
-        void addFramesMT(const Range& src, size_t frames)
+        void addFramesMT(const Range& src, std::size_t frames)
         {
             meter.addFramesMT(src, frames);
         }
@@ -386,4 +386,4 @@ namespace loudness {
         }
     }
 }  // namespace loudness
-#endif  // LOUDNESS_METER_HPP
+#endif  // LIBLOUDNESS_METER_HPP

@@ -1,7 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
-#ifndef LOUDNESS_DEFINES_HPP
-#define LOUDNESS_DEFINES_HPP
+#ifndef LIBLOUDNESS_DEFINES_HPP
+#define LIBLOUDNESS_DEFINES_HPP
 
 #include <cstdint>
 #include <limits>
@@ -23,7 +23,7 @@ namespace loudness {
      *  Use these values when setting the channel map with Meter::setChannel().
      *  See definitions in ITU R-REC-BS 1770-4
      */
-    enum class Channel : uint_fast8_t {
+    enum class Channel : std::uint_fast8_t {
         Unused = 0,        /**< Unused channel (for example LFE channel) */
         Left = 1,          /**<           */
         Mp030 = 1,         /**< ITU M+030 */
@@ -67,7 +67,7 @@ namespace loudness {
      *  Use these values for Meter mode. Try to use the lowest possible
      *  combination that suit your needs, as performance will be better.
      */
-    enum class Mode : uint_fast8_t {
+    enum class Mode : std::uint_fast8_t {
         EBU_M = (1U << 0U),
         EBU_S = (1U << 1U) | EBU_M,
         EBU_I = (1U << 2U) | EBU_M,
@@ -111,6 +111,6 @@ namespace loudness {
     using NumChannels = BoundNaturalInteger<int, 1, max_channels>;
 
     using DataType = std::variant<const float*, const float* const*, const double*, const double* const*,
-                                  const int16_t*, const int16_t* const*, const int32_t*, const int32_t* const*>;
+                                  const std::int16_t*, const std::int16_t* const*, const std::int32_t*, const std::int32_t* const*>;
 }  // namespace loudness
-#endif  // LOUDNESS_DEFINES_HPP
+#endif  // LIBLOUDNESS_DEFINES_HPP

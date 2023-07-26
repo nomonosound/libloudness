@@ -26,32 +26,32 @@ namespace loudness::detail {
         /** Number of subblocks to store. Each subblock is 100ms*/
         static constexpr int num_subblocks = st_subblocks;
 
-        void initChannelMap(size_t num_channels);
+        void initChannelMap(std::size_t num_channels);
         void initAudioBuffers(unsigned num_channels, unsigned long samplerate);
         void initInterpolator(unsigned num_channels, unsigned long samplerate);
         void recalcChannelWeights();
         void calcSubBlocks();
         void addIntegrationBlock();
         void addShorttermBlock();
-        [[nodiscard]] double energyInInterval(size_t interval_frames) const;
+        [[nodiscard]] double energyInInterval(std::size_t interval_frames) const;
 
-        void addFramesLoudness(DataType src, size_t frames);
-
-        template <ConstData T>
-        void filter(T* src, size_t offset, size_t frames);
+        void addFramesLoudness(DataType src, std::size_t frames);
 
         template <ConstData T>
-        void findSamplePeaks(T* src, size_t frames);
+        void filter(T* src, std::size_t offset, std::size_t frames);
+
+        template <ConstData T>
+        void findSamplePeaks(T* src, std::size_t frames);
 
         /** Filtered audio data (used as ring buffer). */
         std::vector<std::vector<double>> audio_data_;
         /** Size of audio_data array. */
-        size_t audio_data_frames_;
+        std::size_t audio_data_frames_;
         /** Current index for audio_data. */
-        size_t audio_data_index_ = 0;
+        std::size_t audio_data_index_ = 0;
 
         /** Data for subblocks for gating blocks */
-        size_t calc_audio_index_ = 0;
+        std::size_t calc_audio_index_ = 0;
         std::vector<std::deque<double>> calculated_subblocks_;
 
         /** The channel map. Has as many elements as there are channels. */
@@ -67,7 +67,7 @@ namespace loudness::detail {
         KFilter k_filter_;
 
         /** Keeps track of when a new short term block is needed. */
-        size_t short_term_frame_counter_ = 0;
+        std::size_t short_term_frame_counter_ = 0;
         /** Maximum sample peak, one per channel */
         std::vector<double> sample_peak_;
         std::vector<double> last_sample_peak_;
@@ -121,7 +121,7 @@ namespace loudness::detail {
         }
     }
 
-    void Impl::initChannelMap(size_t num_channels)
+    void Impl::initChannelMap(std::size_t num_channels)
     {
         channel_map_.resize(num_channels);
         if (num_channels == 4) {
@@ -138,7 +138,7 @@ namespace loudness::detail {
             channel_map_[4] = Channel::RightSurround;
         }
         else {
-            for (size_t i = 0; i < num_channels; ++i) {
+            for (std::size_t i = 0; i < num_channels; ++i) {
                 switch (i) {
                 case 0:
                     channel_map_[i] = Channel::Left;
@@ -219,11 +219,11 @@ namespace loudness::detail {
     }
 
     template <ConstData T>
-    void Impl::filter(T* src, size_t offset, size_t frames)
+    void Impl::filter(T* src, std::size_t offset, std::size_t frames)
     {
         // Apply filter
-        const size_t channels = audio_data_.size();
-        for (size_t c = 0; c < channels; ++c) {
+        const std::size_t channels = audio_data_.size();
+        for (std::size_t c = 0; c < channels; ++c) {
             if (channel_map_[c] == Channel::Unused) {
                 continue;
             }
@@ -236,7 +236,7 @@ namespace loudness::detail {
                 });
             }
             else {
-                for (size_t i = 0; i < frames; ++i) {
+                for (std::size_t i = 0; i < frames; ++i) {
                     audio[i] = k_filter_.apply(
                         static_cast<double>(src[(i + offset) * channels + c]) / getScalingFactor<T>(), c);
                     audio[i] *= audio[i];
@@ -250,10 +250,10 @@ namespace loudness::detail {
     }
 
     template <ConstData T>
-    void Impl::findSamplePeaks(T* src, size_t frames)
+    void Impl::findSamplePeaks(T* src, std::size_t frames)
     {
-        const size_t channels = sample_peak_.size();
-        for (size_t chan = 0; chan < channels; ++chan) {
+        const std::size_t channels = sample_peak_.size();
+        for (std::size_t chan = 0; chan < channels; ++chan) {
             if constexpr (std::is_pointer_v<T>) {
                 using U = std::remove_pointer_t<T>;
                 auto minmax = std::minmax_element(src[chan], src[chan] + frames);
@@ -261,9 +261,9 @@ namespace loudness::detail {
                     static_cast<double>(std::max<U>(-*minmax.first, *minmax.second)) / getScalingFactor<U>();
             }
             else {
-                const size_t channels = sample_peak_.size();
+                const std::size_t channels = sample_peak_.size();
                 double max = 0.0;
-                for (size_t i = 0; i < frames; ++i) {
+                for (std::size_t i = 0; i < frames; ++i) {
                     const double cur = std::abs(static_cast<double>(src[i * channels + chan]));
                     if (cur > max) {
                         max = cur;
@@ -277,10 +277,10 @@ namespace loudness::detail {
         }
     }
 
-    double Impl::energyInInterval(size_t interval_frames) const
+    double Impl::energyInInterval(std::size_t interval_frames) const
     {
         double sum = 0.0;
-        for (size_t c = 0; c < channel_map_.size(); ++c) {
+        for (std::size_t c = 0; c < channel_map_.size(); ++c) {
             if (channel_map_[c] == Channel::Unused) {
                 continue;
             }
@@ -303,10 +303,10 @@ namespace loudness::detail {
         return sum / static_cast<double>(interval_frames);
     }
 
-    void Impl::addFramesLoudness(DataType src, size_t frames)
+    void Impl::addFramesLoudness(DataType src, std::size_t frames)
     {
         const ScopedFTZ guard;
-        size_t src_index = 0;
+        std::size_t src_index = 0;
         while (frames > 0) {
             if (frames >= needed_frames_) {
                 std::visit([this, src_index](auto&& src) { filter(src, src_index, needed_frames_); }, src);
@@ -349,7 +349,7 @@ namespace loudness::detail {
     void Impl::calcSubBlocks()
     {
         for (; calc_audio_index_ + samples_in_100ms_ <= audio_data_index_; calc_audio_index_ += samples_in_100ms_) {
-            for (size_t c = 0; c < channel_map_.size(); ++c) {
+            for (std::size_t c = 0; c < channel_map_.size(); ++c) {
                 if (channel_map_[c] == Channel::Unused) {
                     continue;
                 }
@@ -366,7 +366,7 @@ namespace loudness::detail {
     void Impl::addIntegrationBlock()
     {
         double sum = 0.0;
-        for (size_t c = 0; c < channel_weight_.size(); ++c) {
+        for (std::size_t c = 0; c < channel_weight_.size(); ++c) {
             if (channel_map_[c] != Channel::Unused) {
                 sum += channel_weight_[c] * std::reduce(calculated_subblocks_[c].crbegin(),
                                                         calculated_subblocks_[c].crbegin() + m_subblocks, 0.0);
@@ -381,7 +381,7 @@ namespace loudness::detail {
     void Impl::addShorttermBlock()
     {
         double sum = 0.0;
-        for (size_t c = 0; c < channel_weight_.size(); ++c) {
+        for (std::size_t c = 0; c < channel_weight_.size(); ++c) {
             if (channel_map_[c] != Channel::Unused) {
                 sum += channel_weight_[c] * std::reduce(calculated_subblocks_[c].crbegin(),
                                                         calculated_subblocks_[c].crbegin() + st_subblocks, 0.0);
@@ -486,7 +486,7 @@ namespace loudness::detail {
         return pimpl_->bs1770_calculator_->setMaxHistory(history_ms);
     }
 
-    void Meter::addFramesMT(DataType src, size_t frames)
+    void Meter::addFramesMT(DataType src, std::size_t frames)
     {
         /* Lazely spin up threads when needed. */
         if (not pimpl_->pool_.has_value()) {
@@ -517,7 +517,7 @@ namespace loudness::detail {
         pimpl_->pool_->wait_for_tasks();
     }
 
-    void Meter::addFrames(DataType src, size_t frames)
+    void Meter::addFrames(DataType src, std::size_t frames)
     {
         const ScopedFTZ guard;
         // Find new sample peak
@@ -596,7 +596,7 @@ namespace loudness::detail {
 
     double Meter::loudnessWindow(unsigned long window_ms) const
     {
-        const size_t interval_frames = (samplerate_ * window_ms) / milliseconds_in_second;
+        const std::size_t interval_frames = (samplerate_ * window_ms) / milliseconds_in_second;
 
         if (interval_frames > pimpl_->audio_data_frames_) {
             throw std::domain_error("Requested window larger than currently configured max window");
@@ -720,7 +720,7 @@ namespace loudness::detail {
     {
         double gated_loudness = 0.0;
         double relative_threshold = 0.0;
-        size_t above_thresh_counter = 0;
+        std::size_t above_thresh_counter = 0;
 
         for (const auto& meter : meters) {
             auto value = meter->pimpl_->bs1770_calculator_->blockCountAndSum();

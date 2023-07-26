@@ -490,11 +490,11 @@ TEMPLATE_LIST_TEST_CASE("Test all input data configurations", "[meter][input]", 
 
 TEMPLATE_TEST_CASE_SIG("Test multi-global-loudness", "[integrated][multi]",
                        ((typename T, loudness::Mode mode), T, mode), (float, loudness::Mode::EBU_I),
-                       (double, loudness::Mode::EBU_I), (int16_t, loudness::Mode::EBU_I),
-                       (int32_t, loudness::Mode::EBU_I), (float, loudness::Mode::EBU_I | loudness::Mode::Histogram),
+                       (double, loudness::Mode::EBU_I), (std::int16_t, loudness::Mode::EBU_I),
+                       (std::int32_t, loudness::Mode::EBU_I), (float, loudness::Mode::EBU_I | loudness::Mode::Histogram),
                        (double, loudness::Mode::EBU_I | loudness::Mode::Histogram),
-                       (int16_t, loudness::Mode::EBU_I | loudness::Mode::Histogram),
-                       (int32_t, loudness::Mode::EBU_I | loudness::Mode::Histogram))
+                       (std::int16_t, loudness::Mode::EBU_I | loudness::Mode::Histogram),
+                       (std::int32_t, loudness::Mode::EBU_I | loudness::Mode::Histogram))
 {
     const unsigned long samplerate = GENERATE(44100, 48000, prime_samplerate);
     constexpr unsigned int channels = 2;
@@ -514,11 +514,11 @@ TEMPLATE_TEST_CASE_SIG("Test multi-global-loudness", "[integrated][multi]",
 
 TEMPLATE_TEST_CASE_SIG("Test multi-loudness-range", "[loudness-range][multi]",
                        ((typename T, loudness::Mode mode), T, mode), (float, loudness::Mode::EBU_LRA),
-                       (double, loudness::Mode::EBU_LRA), (int16_t, loudness::Mode::EBU_LRA),
-                       (int32_t, loudness::Mode::EBU_LRA), (float, loudness::Mode::EBU_LRA | loudness::Mode::Histogram),
+                       (double, loudness::Mode::EBU_LRA), (std::int16_t, loudness::Mode::EBU_LRA),
+                       (std::int32_t, loudness::Mode::EBU_LRA), (float, loudness::Mode::EBU_LRA | loudness::Mode::Histogram),
                        (double, loudness::Mode::EBU_LRA | loudness::Mode::Histogram),
-                       (int16_t, loudness::Mode::EBU_LRA | loudness::Mode::Histogram),
-                       (int32_t, loudness::Mode::EBU_LRA | loudness::Mode::Histogram))
+                       (std::int16_t, loudness::Mode::EBU_LRA | loudness::Mode::Histogram),
+                       (std::int32_t, loudness::Mode::EBU_LRA | loudness::Mode::Histogram))
 {
     const unsigned long samplerate = GENERATE(44100, 48000, prime_samplerate);
     constexpr unsigned int channels = 2;

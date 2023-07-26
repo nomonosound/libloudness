@@ -1,7 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
-#ifndef LOUDNESS_KFILTER_HPP
-#define LOUDNESS_KFILTER_HPP
+#ifndef LIBLOUDNESS_KFILTER_HPP
+#define LIBLOUDNESS_KFILTER_HPP
 
 #include <array>
 #include <vector>
@@ -17,7 +17,7 @@ namespace loudness {
          * @warning Use architecture FTZ if available for better optimization
          * @param channel
          */
-        void manuallyFTZ(unsigned int channel);
+        void manuallyFTZ(std::size_t channel);
 
     private:
         static constexpr std::size_t FILTER_STATE_SIZE = 5;
@@ -31,4 +31,4 @@ namespace loudness {
         std::vector<filter_state> v_;
     };
 }  // namespace loudness
-#endif  // LOUDNESS_KFILTER_HPP
+#endif  // LIBLOUDNESS_KFILTER_HPP

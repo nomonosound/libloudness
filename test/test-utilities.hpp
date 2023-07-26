@@ -12,7 +12,7 @@
 #include "loudness/utils.hpp"
 
 constexpr unsigned long prime_samplerate = 69313;
-using DataTypes = std::tuple<float, double, int16_t, int32_t>;
+using DataTypes = std::tuple<float, double, std::int16_t, std::int32_t>;
 
 inline double dbFSToLinear(double dbFS) { return std::pow(10, dbFS / 20.0); }
 

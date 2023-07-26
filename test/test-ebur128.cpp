@@ -18,12 +18,12 @@ TEMPLATE_TEST_CASE_SIG("EBU Tech3341 I-Mode test cases", "[Tech3341][EBU][integr
                        ((typename T, loudness::Mode mode), T, mode),
                        (float, loudness::Mode::EBU_I | loudness::Mode::EBU_S),
                        (double, loudness::Mode::EBU_I | loudness::Mode::EBU_S),
-                       (int16_t, loudness::Mode::EBU_I | loudness::Mode::EBU_S),
-                       (int32_t, loudness::Mode::EBU_I | loudness::Mode::EBU_S),
+                       (std::int16_t, loudness::Mode::EBU_I | loudness::Mode::EBU_S),
+                       (std::int32_t, loudness::Mode::EBU_I | loudness::Mode::EBU_S),
                        (float, loudness::Mode::EBU_I | loudness::Mode::EBU_S | loudness::Mode::Histogram),
                        (double, loudness::Mode::EBU_I | loudness::Mode::EBU_S | loudness::Mode::Histogram),
-                       (int16_t, loudness::Mode::EBU_I | loudness::Mode::EBU_S | loudness::Mode::Histogram),
-                       (int32_t, loudness::Mode::EBU_I | loudness::Mode::EBU_S | loudness::Mode::Histogram))
+                       (std::int16_t, loudness::Mode::EBU_I | loudness::Mode::EBU_S | loudness::Mode::Histogram),
+                       (std::int32_t, loudness::Mode::EBU_I | loudness::Mode::EBU_S | loudness::Mode::Histogram))
 {
     const unsigned long samplerate = GENERATE(44100, 48000, prime_samplerate);
     INFO("Samplerate: " << samplerate);
@@ -302,11 +302,12 @@ TEMPLATE_LIST_TEST_CASE("EBU Tech3341 true peak test cases", "[Tech3341][EBU][pe
 
 TEMPLATE_TEST_CASE_SIG("EBU Tech 3342 test cases", "[Tech3342][EBU][LRA][loudness-range]",
                        ((typename T, loudness::Mode mode), T, mode), (float, loudness::Mode::EBU_LRA),
-                       (double, loudness::Mode::EBU_LRA), (int16_t, loudness::Mode::EBU_LRA),
-                       (int32_t, loudness::Mode::EBU_LRA), (float, loudness::Mode::EBU_LRA | loudness::Mode::Histogram),
+                       (double, loudness::Mode::EBU_LRA), (std::int16_t, loudness::Mode::EBU_LRA),
+                       (std::int32_t, loudness::Mode::EBU_LRA),
+                       (float, loudness::Mode::EBU_LRA | loudness::Mode::Histogram),
                        (double, loudness::Mode::EBU_LRA | loudness::Mode::Histogram),
-                       (int16_t, loudness::Mode::EBU_LRA | loudness::Mode::Histogram),
-                       (int32_t, loudness::Mode::EBU_LRA | loudness::Mode::Histogram))
+                       (std::int16_t, loudness::Mode::EBU_LRA | loudness::Mode::Histogram),
+                       (std::int32_t, loudness::Mode::EBU_LRA | loudness::Mode::Histogram))
 {
     const unsigned long samplerate = GENERATE(44100, 48000, prime_samplerate);
     INFO("Samplerate: " << samplerate);

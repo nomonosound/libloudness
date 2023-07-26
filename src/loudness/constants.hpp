@@ -1,7 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
-#ifndef LOUDNESS_CONSTANTS_HPP
-#define LOUDNESS_CONSTANTS_HPP
+#ifndef LIBLOUDNESS_CONSTANTS_HPP
+#define LIBLOUDNESS_CONSTANTS_HPP
 
 #include <gcem.hpp>
 
@@ -35,4 +35,4 @@ namespace loudness {
     constexpr int st_block_overlap_ms = st_subblock_overlap * subblock_ms;
 }  // namespace loudness
 
-#endif  // LOUDNESS_CONSTANTS_HPP
+#endif  // LIBLOUDNESS_CONSTANTS_HPP

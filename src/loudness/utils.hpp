@@ -1,7 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
-#ifndef LOUDNESS_UTILS_HPP
-#define LOUDNESS_UTILS_HPP
+#ifndef LIBLOUDNESS_UTILS_HPP
+#define LIBLOUDNESS_UTILS_HPP
 
 #include <algorithm>
 #include <cmath>
@@ -77,7 +77,7 @@ namespace loudness {
     /* This changes the order of the range */
     inline auto medianInPlace(std::ranges::random_access_range auto&& range)
     {
-        const size_t n = range.size() / 2;
+        const std::size_t n = range.size() / 2;
         if (n == 0) [[unlikely]] {
             return -HUGE_VAL;
         }
@@ -108,4 +108,4 @@ namespace loudness {
         }
     }
 }  // namespace loudness
-#endif  // LOUDNESS_UTILS_HPP
+#endif  // LIBLOUDNESS_UTILS_HPP

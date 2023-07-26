@@ -70,7 +70,7 @@ namespace loudness {
             b_[4] * v_[channel][4];
     }
 
-    void KFilter::manuallyFTZ(unsigned int channel)
+    void KFilter::manuallyFTZ(std::size_t channel)
     {
         v_[channel][4] = std::abs(v_[channel][4]) < std::numeric_limits<double>::min() ? 0.0 : v_[channel][4];
         v_[channel][3] = std::abs(v_[channel][3]) < std::numeric_limits<double>::min() ? 0.0 : v_[channel][3];

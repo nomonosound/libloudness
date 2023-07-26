@@ -1,7 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
-#ifndef LOUDNESS_DETAIL_METER_IMPL_HPP
-#define LOUDNESS_DETAIL_METER_IMPL_HPP
+#ifndef LIBLOUDNESS_DETAIL_METER_IMPL_HPP
+#define LIBLOUDNESS_DETAIL_METER_IMPL_HPP
 
 #include <cstddef>
 #include <memory>
@@ -26,14 +26,14 @@ namespace loudness::detail {
         bool setMaxWindow(unsigned long window_ms);
         bool setMaxHistory(unsigned long history_ms);
 
-        void addFrames(DataType src, size_t frames);
-        void addFramesMT(DataType src, size_t frames);
+        void addFrames(DataType src, std::size_t frames);
+        void addFramesMT(DataType src, std::size_t frames);
 
         template <std::ranges::range Range>
-        void addFrames(const Range& src, size_t frames);
+        void addFrames(const Range& src, std::size_t frames);
 
         template <std::ranges::range Range>
-        void addFramesMT(const Range& src, size_t frames);
+        void addFramesMT(const Range& src, std::size_t frames);
 
         // Tech 3341
         [[nodiscard]] double loudnessGlobal() const;
@@ -77,8 +77,8 @@ namespace loudness::detail {
     template <typename T>
     concept HasDataPointer = requires(T t) { *t.data(); };
 
-    template <void (Meter::*Func)(DataType, size_t), std::ranges::range Range>
-    void addRange(Meter* obj, const Range& src, size_t frames)
+    template <void (Meter::*Func)(DataType, std::size_t), std::ranges::range Range>
+    void addRange(Meter* obj, const Range& src, std::size_t frames)
     {
         using T = std::ranges::range_value_t<Range>;
         if constexpr (std::is_pointer_v<T>) {
@@ -109,16 +109,16 @@ namespace loudness::detail {
     }
 
     template <std::ranges::range Range>
-    void Meter::addFrames(const Range& src, size_t frames)
+    void Meter::addFrames(const Range& src, std::size_t frames)
     {
         addRange<&Meter::addFrames, Range>(this, src, frames);
     }
 
     template <std::ranges::range Range>
-    void Meter::addFramesMT(const Range& src, size_t frames)
+    void Meter::addFramesMT(const Range& src, std::size_t frames)
     {
         addRange<&Meter::addFramesMT, Range>(this, src, frames);
     }
 
 }  // namespace loudness::detail
-#endif  // LOUDNESS_DETAIL_METER_IMPL_HPP
+#endif  // LIBLOUDNESS_DETAIL_METER_IMPL_HPP

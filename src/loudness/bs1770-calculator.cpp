@@ -25,7 +25,7 @@ namespace loudness {
 
     constexpr double minimum_energy = absolute_gate;
 
-    constexpr size_t findHistogramIndex(double energy)
+    constexpr std::size_t findHistogramIndex(double energy)
     {
         constexpr double max = loudnessToEnergy((HistogramCalculator::HISTOGRAM_SIZE - 1) / 10.0 + absolute_gate_LUFS);
         if (energy >= max) [[unlikely]] {
@@ -35,7 +35,7 @@ namespace loudness {
             return 0;
         }
         else [[likely]] {
-            return static_cast<size_t>(10.0 * (energyToLoudness(energy) - absolute_gate_LUFS));
+            return static_cast<std::size_t>(10.0 * (energyToLoudness(energy) - absolute_gate_LUFS));
         }
     }
 
@@ -57,9 +57,9 @@ namespace loudness {
 
     ValueCounter HistogramCalculator::loudness(double relative_threshold) const
     {
-        size_t above_thresh_counter = 0;
+        std::size_t above_thresh_counter = 0;
         double gated_loudness = 0.0;
-        for (size_t j = relative_threshold_index(relative_threshold); j < HISTOGRAM_SIZE; ++j) {
+        for (std::size_t j = relative_threshold_index(relative_threshold); j < HISTOGRAM_SIZE; ++j) {
             gated_loudness += block_energy_histogram[j] * histogram_energies[j];
             above_thresh_counter += block_energy_histogram[j];
         }
@@ -69,18 +69,18 @@ namespace loudness {
 
     double HistogramCalculator::medianLoudness(double relative_threshold) const
     {
-        size_t i = relative_threshold_index(relative_threshold);
+        std::size_t i = relative_threshold_index(relative_threshold);
         const auto total = std::reduce(block_energy_histogram.cbegin() + i, block_energy_histogram.cend(), 0UL);
         if (total == 0) return -HUGE_VAL;
 
         const auto n = total / 2;
-        size_t count = 0;
+        std::size_t count = 0;
         for (; count < n; ++i) {
             count += block_energy_histogram[i];
         }
         if (count == n && total % 2 == 0) {
             // Median is between two bars, take average of the two
-            size_t j = i;
+            std::size_t j = i;
             for (; block_energy_histogram[j] == 0; ++j)
                 ;
             return (histogram_energies[i - 1] + histogram_energies[j]) / 2;
@@ -93,11 +93,11 @@ namespace loudness {
     double HistogramCalculator::loudnessRangeMultiple(const std::vector<const HistogramCalculator*>& histograms)
     {
         std::array<unsigned long, HISTOGRAM_SIZE> hist = {0};
-        size_t stl_size = 0;
+        std::size_t stl_size = 0;
         double stl_power = 0.0;
 
         for (const auto& hist_calc : histograms) {
-            for (size_t j = 0; j < HISTOGRAM_SIZE; ++j) {
+            for (std::size_t j = 0; j < HISTOGRAM_SIZE; ++j) {
                 hist[j] += hist_calc->short_term_block_energy_histogram[j];
                 stl_size += hist_calc->short_term_block_energy_histogram[j];
                 stl_power += hist_calc->short_term_block_energy_histogram[j] * histogram_energies[j];
@@ -110,7 +110,7 @@ namespace loudness {
         stl_power /= stl_size;
         const double stl_integrated = minus_twenty_decibels * stl_power;
 
-        size_t index;
+        std::size_t index;
         if (stl_integrated < minimum_energy) {
             index = 0;
         }
@@ -121,7 +121,7 @@ namespace loudness {
             }
         }
         stl_size = 0;
-        for (size_t j = index; j < HISTOGRAM_SIZE; ++j) {
+        for (std::size_t j = index; j < HISTOGRAM_SIZE; ++j) {
             stl_size += hist[j];
         }
         if (stl_size == 0) {
@@ -132,7 +132,7 @@ namespace loudness {
         const auto percentile_high = std::lround((stl_size - 1) * 0.95);
 
         stl_size = 0;
-        size_t j = index;
+        std::size_t j = index;
         while (stl_size <= percentile_low) {
             stl_size += hist[j++];
         }
@@ -145,13 +145,13 @@ namespace loudness {
         return energyToLoudness(h_en) - energyToLoudness(l_en);
     }
 
-    size_t HistogramCalculator::relative_threshold_index(double relative_threshold)
+    std::size_t HistogramCalculator::relative_threshold_index(double relative_threshold)
     {
         if (relative_threshold < minimum_energy) {
             return 0;
         }
 
-        size_t start_index = findHistogramIndex(relative_threshold);
+        std::size_t start_index = findHistogramIndex(relative_threshold);
         if (relative_threshold > histogram_energies[start_index]) {
             ++start_index;
         }
@@ -205,7 +205,7 @@ namespace loudness {
     ValueCounter BlockListCalculator::loudness(double relative_threshold) const
     {
         double gated_loudness = 0.0;
-        size_t above_thresh_counter = 0;
+        std::size_t above_thresh_counter = 0;
         for (auto block : block_list_) {
             if (block >= relative_threshold) {
                 ++above_thresh_counter;
@@ -229,7 +229,7 @@ namespace loudness {
 
     double BlockListCalculator::loudnessRangeMultiple(const std::vector<const BlockListCalculator*>& block_lists)
     {
-        size_t stl_size = 0;
+        std::size_t stl_size = 0;
         for (const auto& block_list : block_lists) {
             stl_size += block_list->short_term_block_list_.size();
         }
@@ -251,7 +251,7 @@ namespace loudness {
         const double stl_integrated = minus_twenty_decibels * stl_power;
 
         double* stl_relgated = stl_vector.data();
-        size_t stl_relgated_size = stl_size;
+        std::size_t stl_relgated_size = stl_size;
         while (stl_relgated_size > 0 && *stl_relgated < stl_integrated) {
             ++stl_relgated;
             --stl_relgated_size;

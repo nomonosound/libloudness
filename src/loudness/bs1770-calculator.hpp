@@ -1,7 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
-#ifndef LOUDNESS_BS1770_CALCULATOR_HPP
-#define LOUDNESS_BS1770_CALCULATOR_HPP
+#ifndef LIBLOUDNESS_BS1770_CALCULATOR_HPP
+#define LIBLOUDNESS_BS1770_CALCULATOR_HPP
 
 #include <array>
 #include <cstddef>
@@ -10,7 +10,7 @@
 
 namespace loudness {
     struct ValueCounter {
-        size_t count;
+        std::size_t count;
         double sum;
     };
 
@@ -54,7 +54,7 @@ namespace loudness {
 
     class HistogramCalculator : public BS1770Calculator {
     public:
-        static constexpr size_t HISTOGRAM_SIZE = 1000;
+        static constexpr std::size_t HISTOGRAM_SIZE = 1000;
 
         void addBlock(double energy) override;
         void addShortTermBlock(double energy) override;
@@ -67,10 +67,10 @@ namespace loudness {
         static double loudnessRangeMultiple(const std::vector<const HistogramCalculator*>& histograms);
 
     private:
-        static size_t relative_threshold_index(double relative_threshold);
+        static std::size_t relative_threshold_index(double relative_threshold);
 
         std::array<unsigned long, HISTOGRAM_SIZE> block_energy_histogram{};
         std::array<unsigned long, HISTOGRAM_SIZE> short_term_block_energy_histogram{};
     };
 }  // namespace loudness
-#endif  // LOUDNESS_BS1770_CALCULATOR_HPP
+#endif  // LIBLOUDNESS_BS1770_CALCULATOR_HPP

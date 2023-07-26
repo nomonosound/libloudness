@@ -1,7 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
-#ifndef LOUDNESS_INTERPOLATOR_HPP
-#define LOUDNESS_INTERPOLATOR_HPP
+#ifndef LIBLOUDNESS_INTERPOLATOR_HPP
+#define LIBLOUDNESS_INTERPOLATOR_HPP
 
 #include <cmath>
 #include <numeric>
@@ -30,7 +30,7 @@ namespace loudness {
     private:
         struct ChannelData {
             std::vector<float> buffer;
-            size_t index;
+            std::size_t index;
             float peak;
         };
 
@@ -91,4 +91,4 @@ namespace loudness {
         chan_data_[chan].peak = peak;
     }
 }  // namespace loudness
-#endif  // LOUDNESS_INTERPOLATOR_HPP
+#endif  // LIBLOUDNESS_INTERPOLATOR_HPP
