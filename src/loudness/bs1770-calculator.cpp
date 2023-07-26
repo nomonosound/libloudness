@@ -23,7 +23,8 @@ namespace loudness {
     {
         std::array<double, HistogramCalculator::HISTOGRAM_SIZE> histogram_energies;
         for (unsigned int i = 0; i < histogram_energies.size(); ++i) {
-            histogram_energies[i] = loudnessToEnergy(static_cast<double>(i) * bin_size_LU + absolute_gate_LUFS + bin_size_LU / 2);
+            histogram_energies[i] =
+                loudnessToEnergy(static_cast<double>(i) * bin_size_LU + absolute_gate_LUFS + bin_size_LU / 2);
         }
         return histogram_energies;
     }
@@ -32,7 +33,8 @@ namespace loudness {
 
     constexpr std::size_t findHistogramIndex(double energy)
     {
-        constexpr double max = loudnessToEnergy((HistogramCalculator::HISTOGRAM_SIZE - 1) * bin_size_LU + absolute_gate_LUFS);
+        constexpr double max =
+            loudnessToEnergy((HistogramCalculator::HISTOGRAM_SIZE - 1) * bin_size_LU + absolute_gate_LUFS);
         if (energy >= max) [[unlikely]] {
             return HistogramCalculator::HISTOGRAM_SIZE - 1;
         }
@@ -164,8 +166,8 @@ namespace loudness {
 
     BlockListCalculator::BlockListCalculator()
         : history_ms_(std::numeric_limits<unsigned long>::max()),
-          block_list_max_(history_ms_ / m_block_overlap_ms),
-          st_block_list_max_(history_ms_ / st_block_overlap_ms)
+          block_list_max_(history_ms_ / block_overlap_ms),
+          st_block_list_max_(history_ms_ / block_overlap_ms)
     {
     }
 
@@ -189,10 +191,16 @@ namespace loudness {
     {
         if (history_ms == history_ms_) return false;
         history_ms_ = history_ms;
-        block_list_max_ = history_ms / m_block_overlap_ms;
-        st_block_list_max_ = history_ms / st_block_overlap_ms;
+        block_list_max_ = history_ms_ / block_overlap_ms;
+        if (block_list_max_ >= m_subblocks) {
+            block_list_max_ -= m_subblocks - 1;
+        }
         if (block_list_.size() > block_list_max_) {
             block_list_.resize(block_list_max_);
+        }
+        st_block_list_max_ = history_ms_ / block_overlap_ms;
+        if (st_block_list_max_ >= st_subblocks) {
+            st_block_list_max_ -= st_subblocks - 1;
         }
         if (short_term_block_list_.size() > st_block_list_max_) {
             short_term_block_list_.resize(st_block_list_max_);
@@ -244,7 +252,7 @@ namespace loudness {
 
         for (const auto& block_list : block_lists) {
             blocks.insert(blocks.end(), block_list->short_term_block_list_.begin(),
-                              block_list->short_term_block_list_.end());
+                          block_list->short_term_block_list_.end());
         }
 
         std::sort(blocks.begin(), blocks.end());
@@ -254,7 +262,7 @@ namespace loudness {
 
         auto range_begin = std::lower_bound(blocks.begin(), blocks.end(), limit_energy);
 
-        if (range_begin == blocks.end()){
+        if (range_begin == blocks.end()) {
             return 0.0;
         }
         const auto range_size = std::distance(range_begin, blocks.end() - 1);

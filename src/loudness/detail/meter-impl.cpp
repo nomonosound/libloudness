@@ -52,7 +52,7 @@ namespace loudness::detail {
 
         /** Data for subblocks for gating blocks */
         std::size_t calc_audio_index_ = 0;
-        std::vector<std::deque<double>> calculated_subblocks_;
+        std::deque<double> calculated_subblocks_;
 
         /** The channel map. Has as many elements as there are channels. */
         std::vector<Channel> channel_map_;
@@ -66,8 +66,6 @@ namespace loudness::detail {
         unsigned long needed_frames_;
         KFilter k_filter_;
 
-        /** Keeps track of when a new short term block is needed. */
-        std::size_t short_term_frame_counter_ = 0;
         /** Maximum sample peak, one per channel */
         std::vector<double> sample_peak_;
         std::vector<double> last_sample_peak_;
@@ -84,8 +82,7 @@ namespace loudness::detail {
     };
 
     Impl::Impl(unsigned int channels, unsigned long samplerate, Mode mode)
-        : calculated_subblocks_(channels, std::deque<double>()),
-          samples_in_100ms_(roundedDivide<subblocks_in_s>(samplerate)),
+        : samples_in_100ms_(roundedDivide<subblocks_in_s>(samplerate)),
           /* the first block needs 400ms of audio data */
           needed_frames_(samples_in_100ms_ * m_subblocks),
           k_filter_(static_cast<double>(samplerate), channels),
@@ -201,8 +198,6 @@ namespace loudness::detail {
         /* start at the beginning of the buffer */
         audio_data_index_ = 0;
         calc_audio_index_ = 0;
-        /* reset short term frame counter */
-        short_term_frame_counter_ = 0;
     }
 
     void Impl::initInterpolator(unsigned int num_channels, unsigned long samplerate)
@@ -319,10 +314,8 @@ namespace loudness::detail {
                 }
                 if ((mode_ & Mode::EBU_LRA) == Mode::EBU_LRA) {
                     calcSubBlocks();
-                    short_term_frame_counter_ += needed_frames_;
-                    if (short_term_frame_counter_ == samples_in_100ms_ * st_subblocks) {
+                    if (calculated_subblocks_.size() >= st_subblocks) {
                         addShorttermBlock();
-                        short_term_frame_counter_ = samples_in_100ms_ * (st_subblocks - st_subblock_overlap);
                     }
                 }
                 /* 100ms are needed for all blocks besides the first one */
@@ -337,9 +330,6 @@ namespace loudness::detail {
             }
             else {
                 std::visit([this, src_index, frames](auto&& src) { filter(src, src_index, frames); }, src);
-                if ((mode_ & Mode::EBU_LRA) == Mode::EBU_LRA) {
-                    short_term_frame_counter_ += frames;
-                }
                 needed_frames_ -= static_cast<unsigned long>(frames);
                 frames = 0;
             }
@@ -349,29 +339,25 @@ namespace loudness::detail {
     void Impl::calcSubBlocks()
     {
         for (; calc_audio_index_ + samples_in_100ms_ <= audio_data_index_; calc_audio_index_ += samples_in_100ms_) {
+            double sum = 0.0;
             for (std::size_t c = 0; c < channel_map_.size(); ++c) {
                 if (channel_map_[c] == Channel::Unused) {
                     continue;
                 }
-                calculated_subblocks_[c].push_back(
-                    std::reduce(audio_data_[c].cbegin() + calc_audio_index_,
-                                audio_data_[c].cbegin() + calc_audio_index_ + samples_in_100ms_, 0.0));
-                if (calculated_subblocks_[c].size() > num_subblocks) [[likely]] {
-                    calculated_subblocks_[c].pop_front();
-                }
+                sum += channel_weight_[c] * std::reduce(audio_data_[c].cbegin() + calc_audio_index_,
+                                                        audio_data_[c].cbegin() + calc_audio_index_ + samples_in_100ms_,
+                                                        0.0);
+            }
+            calculated_subblocks_.push_back(sum);
+            if (calculated_subblocks_.size() > num_subblocks) [[likely]] {
+                calculated_subblocks_.pop_front();
             }
         }
     }
 
     void Impl::addIntegrationBlock()
     {
-        double sum = 0.0;
-        for (std::size_t c = 0; c < channel_weight_.size(); ++c) {
-            if (channel_map_[c] != Channel::Unused) {
-                sum += channel_weight_[c] * std::reduce(calculated_subblocks_[c].crbegin(),
-                                                        calculated_subblocks_[c].crbegin() + m_subblocks, 0.0);
-            }
-        }
+        double sum = std::reduce(calculated_subblocks_.crbegin(), calculated_subblocks_.crbegin() + m_subblocks, 0.0);
         sum /= static_cast<double>(m_subblocks * samples_in_100ms_);
         if (sum >= absolute_gate) [[likely]] {
             bs1770_calculator_->addBlock(sum);
@@ -380,13 +366,7 @@ namespace loudness::detail {
 
     void Impl::addShorttermBlock()
     {
-        double sum = 0.0;
-        for (std::size_t c = 0; c < channel_weight_.size(); ++c) {
-            if (channel_map_[c] != Channel::Unused) {
-                sum += channel_weight_[c] * std::reduce(calculated_subblocks_[c].crbegin(),
-                                                        calculated_subblocks_[c].crbegin() + st_subblocks, 0.0);
-            }
-        }
+        double sum = std::reduce(calculated_subblocks_.crbegin(), calculated_subblocks_.crbegin() + st_subblocks, 0.0);
         sum /= static_cast<double>(st_subblocks * samples_in_100ms_);
         if (sum >= absolute_gate) [[likely]] {
             bs1770_calculator_->addShortTermBlock(sum);
@@ -428,7 +408,6 @@ namespace loudness::detail {
 
         if (channels.get() != channels_) {
             channels_ = channels.get();
-            pimpl_->calculated_subblocks_.assign(channels_, std::deque<double>());
             pimpl_->sample_peak_.assign(channels_, 0.0);
             pimpl_->last_sample_peak_.assign(channels_, 0.0);
             pimpl_->true_peak_.assign(channels_, 0.0);

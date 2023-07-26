@@ -23,17 +23,14 @@ namespace loudness {
 
     constexpr int m_subblocks = 4;
     constexpr int st_subblocks = 30;
-    constexpr int st_subblock_overlap = 10;
-    /* Overlap between momentary blocks is 1 subblock */
+    /* Overlap between blocks is 1 subblock, size needs to be larger than that */
     static_assert(m_subblocks > 1);
     static_assert(st_subblocks >= m_subblocks);
-    static_assert(st_subblocks > st_subblock_overlap);
 
     constexpr int momentary_block_ms = m_subblocks * subblock_ms;
     constexpr int shortterm_block_ms = st_subblocks * subblock_ms;
 
-    constexpr int m_block_overlap_ms = subblock_ms;
-    constexpr int st_block_overlap_ms = st_subblock_overlap * subblock_ms;
+    constexpr int block_overlap_ms = subblock_ms;
 }  // namespace loudness
 
 #endif  // LIBLOUDNESS_CONSTANTS_HPP
