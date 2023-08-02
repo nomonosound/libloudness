@@ -597,12 +597,10 @@ namespace loudness::detail {
 
     double Meter::loudnessGlobalMedian() const
     {
-        auto [above_thresh_counter, relative_threshold] = pimpl_->bs1770_calculator_->blockCountAndSum();
-        if (above_thresh_counter == 0) {
+        auto relative_threshold = pimpl_->bs1770_calculator_->ungatedMedianLoudness();
+        if (relative_threshold == -HUGE_VAL) {
             return -HUGE_VAL;
         }
-
-        relative_threshold /= static_cast<double>(above_thresh_counter);
         relative_threshold *= relative_gate_factor;
 
         return energyToLoudness(pimpl_->bs1770_calculator_->medianLoudness(relative_threshold));
