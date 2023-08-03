@@ -181,6 +181,21 @@ namespace loudness {
             return meter.loudnessGlobalMedian();
         }
 
+        /** @brief Get global median loudness measured after gating.
+         *
+         *  This first measures the integrated loudness to find the relative gate
+         *  like in loudnessGlobal, but then takes the median of the gated loudness.
+         *  This differs from loudnessGlobalMedian in that the median is not used for
+         *  the gate calculation itself.
+         *  @return integrated loudness in LUFS. -HUGE_VAL if result is negative
+         *             infinity.
+         */
+        [[nodiscard]] double loudnessGlobalMedianAfterGate() const
+            requires((mode & Mode::EBU_I) == Mode::EBU_I)
+        {
+            return meter.loudnessGlobalMedianAfterGate();
+        }
+
         /** @brief Get global median loudness without relative gating.
          *
          *  @return integrated loudness in LUFS. -HUGE_VAL if result is negative

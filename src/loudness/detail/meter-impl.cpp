@@ -606,6 +606,18 @@ namespace loudness::detail {
         return energyToLoudness(pimpl_->bs1770_calculator_->medianLoudness(relative_threshold));
     }
 
+    double Meter::loudnessGlobalMedianAfterGate() const
+    {
+        auto [above_thresh_count, relative_threshold] = pimpl_->bs1770_calculator_->blockCountAndSum();
+        if (above_thresh_count == 0) {
+            return -HUGE_VAL;
+        }
+        relative_threshold /= static_cast<double>(above_thresh_count);
+        relative_threshold *= relative_gate_factor;
+
+        return energyToLoudness(pimpl_->bs1770_calculator_->medianLoudness(relative_threshold));
+    }
+
     double Meter::loudnessGlobalMedianUngated() const
     {
         return energyToLoudness(pimpl_->bs1770_calculator_->ungatedMedianLoudness());

@@ -291,6 +291,7 @@ void checkLoudness(const Meter& meter, double target, double margin)
     CHECK_THAT(meter.loudnessShortterm(), Catch::Matchers::WithinAbs(target, margin));
     CHECK_THAT(meter.loudnessMomentary(), Catch::Matchers::WithinAbs(target, margin));
     CHECK_THAT(meter.loudnessGlobalMedian(), Catch::Matchers::WithinAbs(target, margin));
+    CHECK_THAT(meter.loudnessGlobalMedianAfterGate(), Catch::Matchers::WithinAbs(target, margin));
     CHECK_THAT(meter.loudnessGlobalMedianUngated(), Catch::Matchers::WithinAbs(target, margin));
 }
 

@@ -47,6 +47,7 @@ namespace loudness::detail {
         [[nodiscard]] double loudnessWindow(unsigned long window_ms) const;
         [[nodiscard]] double loudnessGlobalUngated() const;
         [[nodiscard]] double loudnessGlobalMedian() const;
+        [[nodiscard]] double loudnessGlobalMedianAfterGate() const;
         [[nodiscard]] double loudnessGlobalMedianUngated() const;
 
         [[nodiscard]] double samplePeak(unsigned int channel_index) const;
