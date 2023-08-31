@@ -249,7 +249,7 @@ TEMPLATE_LIST_TEST_CASE("At sample rate >= 192000 true peak == sample peak", "[m
 
     constexpr double target = 0.5;
     auto sine_wave = sineWaveTP<TestType>(samplerate / 4.0, samplerate, channels, 0.0, target);
-    meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
+    meter.addFrames(sine_wave);
 
     CHECK_THAT(meter.samplePeak(0), Catch::Matchers::WithinAbs(target, 1e-9));
     CHECK_THAT(meter.samplePeak(1), Catch::Matchers::WithinAbs(target, 1e-9));
@@ -266,7 +266,7 @@ TEMPLATE_LIST_TEST_CASE("At sample rate >= 192000 true peak == sample peak", "[m
 
     constexpr double new_target = 0.25;
     sine_wave = sineWaveTP<TestType>(samplerate / 4.0, samplerate, channels, 0.0, new_target);
-    meter.addFrames(sine_wave.data(), sine_wave.size() / channels);
+    meter.addFrames(sine_wave);
 
     CHECK_THAT(meter.samplePeak(0), Catch::Matchers::WithinAbs(target, 1e-9));
     CHECK_THAT(meter.samplePeak(1), Catch::Matchers::WithinAbs(target, 1e-9));
@@ -323,10 +323,16 @@ TEMPLATE_LIST_TEST_CASE("Test all input data configurations", "[meter][input]", 
             meter.addFrames(interleaved, num_samples);
             checkLoudness(meter, target, margin);
 
+            meter.addFrames(interleaved);
+            checkLoudness(meter, target, margin);
+
             meter.addFramesMT(interleaved.data(), num_samples);
             checkLoudness(meter, target, margin);
 
             meter.addFramesMT(interleaved, num_samples);
+            checkLoudness(meter, target, margin);
+
+            meter.addFramesMT(interleaved);
             checkLoudness(meter, target, margin);
         }
         SECTION("Test channel based")
@@ -343,6 +349,9 @@ TEMPLATE_LIST_TEST_CASE("Test all input data configurations", "[meter][input]", 
             meter.addFrames(channel_audio, num_samples);
             checkLoudness(meter, target, margin);
 
+            meter.addFrames(channel_audio);
+            checkLoudness(meter, target, margin);
+
             meter.addFrames(ptr_vector, num_samples);
             checkLoudness(meter, target, margin);
 
@@ -353,6 +362,9 @@ TEMPLATE_LIST_TEST_CASE("Test all input data configurations", "[meter][input]", 
             checkLoudness(meter, target, margin);
 
             meter.addFramesMT(channel_audio, num_samples);
+            checkLoudness(meter, target, margin);
+
+            meter.addFramesMT(channel_audio);
             checkLoudness(meter, target, margin);
 
             meter.addFramesMT(ptr_vector, num_samples);
@@ -373,7 +385,13 @@ TEMPLATE_LIST_TEST_CASE("Test all input data configurations", "[meter][input]", 
             meter.addFrames(audio, num_samples);
             checkLoudness(meter, mono_target, margin);
 
+            meter.addFrames(audio);
+            checkLoudness(meter, mono_target, margin);
+
             meter.addFrames(audio[0], num_samples);
+            checkLoudness(meter, mono_target, margin);
+
+            meter.addFrames(audio[0]);
             checkLoudness(meter, mono_target, margin);
 
             meter.addFrames(audio[0].data(), num_samples);
@@ -382,7 +400,13 @@ TEMPLATE_LIST_TEST_CASE("Test all input data configurations", "[meter][input]", 
             meter.addFramesMT(audio, num_samples);
             checkLoudness(meter, mono_target, margin);
 
+            meter.addFramesMT(audio);
+            checkLoudness(meter, mono_target, margin);
+
             meter.addFramesMT(audio[0], num_samples);
+            checkLoudness(meter, mono_target, margin);
+
+            meter.addFramesMT(audio[0]);
             checkLoudness(meter, mono_target, margin);
 
             meter.addFramesMT(audio[0].data(), num_samples);

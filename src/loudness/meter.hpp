@@ -148,6 +148,28 @@ namespace loudness {
             meter.addFramesMT(src, frames);
         }
 
+        /** @brief Add frames to be processed as ranges of channels
+         *
+         *  @param src    Range of individual channels to be processed.
+         *                Channels need to be continous
+         */
+        template <std::ranges::range Range>
+        void addFrames(const Range& src)
+        {
+            meter.addFrames(src);
+        }
+
+        /** @brief Multithreaded version of addFrames
+         *
+         *  @param src    Range of individual channels to be processed.
+         *                Channels need to be continous
+         */
+        template <std::ranges::range Range>
+        void addFramesMT(const Range& src)
+        {
+            meter.addFramesMT(src);
+        }
+
         /** @brief Get global integrated loudness in LUFS.
          *
          *  @return integrated loudness in LUFS. -HUGE_VAL if result is negative
