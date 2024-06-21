@@ -1,4 +1,4 @@
 build*/
-*.user
+*.user*
 test/reference_files/
 .vs/

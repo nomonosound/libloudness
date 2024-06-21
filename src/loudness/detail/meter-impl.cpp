@@ -238,7 +238,7 @@ namespace loudness::detail {
                 }
             }
 #ifdef MANUALLY_FTZ
-            pimpl->filter.manuallyFTZ(c);
+            k_filter_.manuallyFTZ(c);
 #endif
         }
         audio_data_index_ += frames;
