@@ -10,7 +10,6 @@
 #include <vector>
 
 #if defined(__SSE2_MATH__) || defined(_M_X64) || _M_IX86_FP >= 2
-// TODO: Add support for arm
 #include <immintrin.h>
 
 class ScopedFTZ {
@@ -26,6 +25,27 @@ private:
     const unsigned int mxcsr_;
 };
 
+#elif defined(__ARM_ARCH)
+class ScopedFTZ {
+public:
+    ScopedFTZ() noexcept
+    {
+        __asm__ __volatile__("mrs %0, fpcr" : "=r"(old_fpcr_));
+        set_fpcr(old_fpcr_ | (1 << 24) | (1 << 19));
+    }
+    ~ScopedFTZ() noexcept { set_fpcr(old_fpcr_); }
+    ScopedFTZ& operator=(const ScopedFTZ&) = delete;
+    ScopedFTZ& operator=(ScopedFTZ&&) = delete;
+    ScopedFTZ(const ScopedFTZ&) = delete;
+    ScopedFTZ(ScopedFTZ&&) = delete;
+
+private:
+    static void set_fpcr(uint64_t fpcr)
+    {
+        __asm__ __volatile__("msr fpcr, %0" : : "r"(fpcr));
+    }
+    uint64_t old_fpcr_;
+};
 #else
 class ScopedFTZ {};
 #warning "manual FTZ is being used, please enable SSE2 (-msse2 -mfpmath=sse)"
