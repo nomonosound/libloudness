@@ -26,6 +26,8 @@ private:
 };
 
 #elif defined(__ARM_ARCH)
+#include <cstdint>
+
 class ScopedFTZ {
 public:
     ScopedFTZ() noexcept

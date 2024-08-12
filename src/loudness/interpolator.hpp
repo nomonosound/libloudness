@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <numeric>
+#include <span>
 #include <vector>
 
 #include "loudness/utils.hpp"
