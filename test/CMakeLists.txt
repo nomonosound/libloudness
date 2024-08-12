@@ -20,3 +20,7 @@ target_sources(loudness_tests
 target_link_libraries(loudness_tests PRIVATE Catch2::Catch2WithMain loudness)
 target_link_libraries(loudness_tests PRIVATE sndfile)
 target_compile_definitions(loudness_tests PRIVATE TEST_DIR="${CMAKE_SOURCE_DIR}/test/")
+list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+include(CTest)
+include(Catch)
+catch_discover_tests(loudness_tests)

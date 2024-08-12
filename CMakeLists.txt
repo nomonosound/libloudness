@@ -13,7 +13,10 @@ add_subdirectory(vendor)
 add_subdirectory(src)
 
 if(LOUDNESS_ENABLE_TESTS)
+  message(STATUS "building tests!")
   add_subdirectory(test)
+else()
+  message(STATUS "not building tests, set LOUDNESS_ENABLE_TESTS to ON to enable")
 endif()
 
 
@@ -21,10 +24,4 @@ if(BUILD_SHARED_LIBS)
   message(STATUS "Building shared library (set BUILD_SHARED_LIBS to OFF to build static)")
 else()
   message(STATUS "Building static library")
-endif()
-
-if(LOUDNESS_ENABLE_TESTS)
-  message(STATUS "building tests!")
-else()
-  message(STATUS "not building tests, set ENABLE_TESTS to ON to enable")
 endif()
